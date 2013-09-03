@@ -159,7 +159,7 @@ public class ImageDetailFragment extends Fragment {
     	
 		float yRatio = (float)iHeight / (float)iWidth;
 		
-		if (yRatio >= 1.0f) {
+		if (yRatio > 1.0f) {
 			float ratio = (float)screenHeight / (float)iHeight;
 			if (ratio > 4.0f) {
 				layoutHeight = iHeight*4;

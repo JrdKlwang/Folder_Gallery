@@ -3,12 +3,34 @@ package com.example.t_gallery;
 import java.util.ArrayList;
 import java.util.Random;
 
+import android.util.Log;
+
 class ImageCell {
-	ImageCell(long aId, int aWidth, int aHeight, int aPosition){
+	ImageCell(long aId, int aWidth, int aHeight, int aPosition, boolean cropCameraImage){
 		id = aId;
 		position = aPosition;
-	    inWidth = aWidth;
-	    inHeight = aHeight;
+		
+		float ratio = (float) aHeight / (float) aWidth;
+		if (ratio > Config.MAX_WIDTH_HEIGHT_RATIO) {
+			inHeight = (int) (aWidth * Config.MAX_WIDTH_HEIGHT_RATIO);
+			inWidth = aWidth;
+			crop = 1;
+		}
+		else if (ratio < 1/Config.MAX_WIDTH_HEIGHT_RATIO) {
+			inWidth = (int) (aHeight * Config.MAX_WIDTH_HEIGHT_RATIO);
+			inHeight = aHeight;
+			crop = 1;
+		}
+		else if(cropCameraImage == true) {
+			inHeight = (int) (aWidth * 1.15f);
+			inWidth = aWidth;
+			crop = 1;
+		}
+		else {
+		    inWidth = aWidth;
+		    inHeight = aHeight;
+		}
+		
 	    yRatio = (float)inHeight / (float)inWidth;
 	}
 	
@@ -28,6 +50,7 @@ class ImageCell {
 	
 	public long id = 0;
 	public int position = 0;
+	public int crop = 0;
 	
 	public int inWidth = 0;
 	public int inHeight = 0;
@@ -50,8 +73,8 @@ class ImageLineGroup {
 		imageList = new ArrayList<ImageCell>();
 	}
 
-	public void addImage(long id, int width, int height, int position){
-		ImageCell image = new ImageCell(id, width, height, position);
+	public void addImage(long id, int width, int height, int position, boolean cropCameraImage){
+		ImageCell image = new ImageCell(id, width, height, position, cropCameraImage);
 		imageList.add(image);
 	}
 	
@@ -1091,7 +1114,7 @@ class ImageRichLinePatternCollection {
 					return -1;
 				}
 
-                int aTypes[] = {IMAGE_LANDSCAPE, IMAGE_PORTRAIT | IMAGE_SLIM};
+                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE, IMAGE_PORTRAIT | IMAGE_SLIM};
                 int aNum[] = {2, 2};
 
                 if (true == isImageListPortrait(images, aTypes, aNum, 4)){
@@ -1155,7 +1178,7 @@ class ImageRichLinePatternCollection {
 					return -1;
 				}
 				
-                int aTypes[] = {IMAGE_LANDSCAPE, IMAGE_PORTRAIT | IMAGE_SLIM};
+                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE, IMAGE_PORTRAIT | IMAGE_SLIM};
                 int aNum[] = {2, 2};
 
                 if (true == isImageListPortrait(images, aTypes, aNum, 4)){
@@ -1219,7 +1242,7 @@ class ImageRichLinePatternCollection {
 					return -1;
 				}
 				
-                int aTypes[] = {IMAGE_LANDSCAPE, IMAGE_PORTRAIT | IMAGE_SLIM};
+                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE, IMAGE_PORTRAIT | IMAGE_SLIM};
                 int aNum[] = {2, 2};
 
                 if (true == isImageListPortrait(images, aTypes, aNum, 4)){
@@ -1602,8 +1625,10 @@ public class GalleryLayout {
 	}
 	
 	public void addImage(long id, int width, int height, int position){
+		boolean cropCameraImage;
+		cropCameraImage = isContinuousCameraRatio(width, height);
 		
-		itemBuffer.add(new ImageCell(id, width, height, position));
+		itemBuffer.add(new ImageCell(id, width, height, position, cropCameraImage));
 		
 		if (itemBuffer.isFull()){
 			processImageBuffer();
@@ -1620,9 +1645,23 @@ public class GalleryLayout {
 		return lines.size();
 	}
 	
+	private boolean isContinuousCameraRatio(int width, int height) {
+		boolean ret = false;
+		float ratio = (float)height/(float)width;
+		if(ratio == 16.0f/9.0f) {
+			continueNum--;
+		}
+		if(continueNum == 0) {
+			ret = true;
+			continueNum = 3;
+		}
+		return ret;
+	}
+	
 	public ArrayList<ImageLineGroup> lines = null;
 	private  ImageProcessBuffer itemBuffer = null;
 	private ImageRichLinePatternCollection patterns = null;
 	private Random random = null;
 	private int totalWidth = 0;
+	private int continueNum = 3;
 }

@@ -72,16 +72,6 @@ public class ImageList extends ListActivity {
 	        String path = listCursor.getString(listCursor.getColumnIndex(Media.DATA));
 			
 			if (width != 0 && height != 0){
-				float ratio = (float) height / (float) width;
-				if (ratio > Config.MAX_WIDTH_HEIGHT_RATIO) {
-					height = (int) (width * Config.MAX_WIDTH_HEIGHT_RATIO);
-				}
-
-				ratio = (float) width / (float) height;
-				if (ratio > Config.MAX_WIDTH_HEIGHT_RATIO) {
-					width = (int) (height * Config.MAX_WIDTH_HEIGHT_RATIO);
-				}
-
 				mGalleryLayout.addImage(id, width, height, j);
 			}
 			listCursor.moveToNext();
@@ -129,7 +119,7 @@ public class ImageList extends ListActivity {
 		}
 	}
 	
-	private synchronized Bitmap clipSlimFlatImage(String path, int width, int height) {
+	private synchronized Bitmap clipSlimFlatImage(String path, int iWidth, int iHeight, int dWidth, int dHeight) {
 		Bitmap bitmap = null;
 
 		try {
@@ -138,24 +128,22 @@ public class ImageList extends ListActivity {
 			if (mDecoder != null) {
 				Rect mRect = new Rect();
 
-				float ratio = (float)height / (float)width;
-				if(ratio > Config.MAX_WIDTH_HEIGHT_RATIO) {
-					int realHeight = (int)(width*Config.MAX_WIDTH_HEIGHT_RATIO);
+				float ratio = (float)dHeight / (float)dWidth;
+				if(ratio > 1.0f) {
+					int realHeight = (int)(iWidth*ratio);
 					int left = 0;
-					int top = (height - realHeight) / 2;
-					int right = width;
+					int top = (iHeight - realHeight) / 2;
+					int right = iWidth;
 					int bottom = top + realHeight;
 
 					mRect.set(left, top, right, bottom);
 				}
-
-				ratio = (float)width / (float)height;
-				if(ratio > Config.MAX_WIDTH_HEIGHT_RATIO) {
-					int realWidth = (int)(height*Config.MAX_WIDTH_HEIGHT_RATIO);
-					int left = (width - realWidth) / 2;
+				else {
+					int realWidth = (int)(iHeight/ratio);
+					int left = (iWidth - realWidth) / 2;
 					int top = 0;
 					int right = left + realWidth;
-					int bottom = height;
+					int bottom = iHeight;
 
 					mRect.set(left, top, right, bottom);
 				}
@@ -169,27 +157,32 @@ public class ImageList extends ListActivity {
 	}
 
 	private synchronized Bitmap adjustThumbmail(Bitmap thumb, int outWidth,
-			int outHeight, int imagePosition) {
+			int outHeight, int imagePosition, int crop) {
 		
 		if(thumb != null) {
 			float ratio = (float)thumb.getHeight() / (float)thumb.getWidth();
 	        String path = mImageList.get(imagePosition);
 
 			//Crop the image a little if it is TOO slim or TOO flat
-			if(ratio > Config.MAX_WIDTH_HEIGHT_RATIO || ratio < 1/Config.MAX_WIDTH_HEIGHT_RATIO) {
-				Log.v("t-gallery", "crop image ratio: "+ratio);
-				thumb.recycle();
-
+			if(1 == crop) {
 				BitmapFactory.Options bitmapFactoryOptions = new BitmapFactory.Options();
 
 				bitmapFactoryOptions.inJustDecodeBounds = true;
 				BitmapFactory.decodeFile(path, bitmapFactoryOptions);
 				
-				Bitmap clipBitmap = clipSlimFlatImage(path, bitmapFactoryOptions.outWidth, bitmapFactoryOptions.outHeight);
+				Bitmap clipBitmap = clipSlimFlatImage(path,
+						bitmapFactoryOptions.outWidth,
+						bitmapFactoryOptions.outHeight, outWidth, outHeight);
 
-				thumb = Bitmap.createScaledBitmap (clipBitmap, outWidth, outHeight, false);
-				if(!clipBitmap.isRecycled()){
-					clipBitmap.recycle();
+				Log.v("t-gallery", "crop image width: " + bitmapFactoryOptions.outWidth + "  , height: " + bitmapFactoryOptions.outHeight);
+				if (clipBitmap != null) {
+					thumb.recycle();
+					
+					thumb = Bitmap.createScaledBitmap(clipBitmap, outWidth, outHeight, false);
+							
+					if (!clipBitmap.isRecycled()) {
+						clipBitmap.recycle();
+					}
 				}
 				return thumb;
 			}
@@ -299,7 +292,9 @@ public class ImageList extends ListActivity {
 	        		}
 	        		else {
 	        			BitmapWorkerTask task = new BitmapWorkerTask(holder.icons[i]);
-					    task.execute(image.id, (long)image.outWidth, (long)image.outHeight, (long)image.position);
+						task.execute(image.id, (long) image.outWidth,
+								(long) image.outHeight, (long) image.position,
+								(long) image.crop);
 					    holder.task[i] = task;
 					    holder.icons[i].setScaleType(ImageView.ScaleType.FIT_XY);
 					    holder.icons[i].setImageResource(R.drawable.grey);	
@@ -341,7 +336,8 @@ public class ImageList extends ListActivity {
 				
 				//If handled, adjust will recycle thumb, and return the handled Bitmap
 				thumb = adjustThumbmail(thumb, params[1].intValue(),
-						  params[2].intValue(), params[3].intValue());
+						params[2].intValue(), params[3].intValue(),
+						params[4].intValue());
 
 				return thumb;
 			}
@@ -502,7 +498,7 @@ public class ImageList extends ListActivity {
 	    	
 			float yRatio = (float)iHeight / (float)iWidth;
 			
-			if (yRatio >= 1.0f) {
+			if (yRatio > 1.0f) {
 				float ratio = (float)screenHeight / (float)iHeight;
 				if (ratio > 4.0f) {
 					layoutHeight = iHeight*4;
