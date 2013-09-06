@@ -1,7 +1,5 @@
 package com.example.t_gallery;
 
-import java.io.IOException;
-import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 
 import android.app.ListActivity;
@@ -9,35 +7,30 @@ import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.graphics.BitmapRegionDecoder;
-import android.graphics.Point;
-import android.graphics.Rect;
-import android.os.AsyncTask;
 import android.os.Bundle;
 import android.provider.MediaStore.Images.Media;
-import android.provider.MediaStore.Images.Thumbnails;
-import android.util.Log;
-import android.util.LruCache;
 import android.view.Menu;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup;
-import android.view.ViewParent;
+import android.view.Window;
 import android.view.animation.AlphaAnimation;
 import android.view.animation.Animation;
 import android.view.animation.AnimationSet;
 import android.view.animation.ScaleAnimation;
+import android.view.animation.TranslateAnimation;
 import android.widget.AbsoluteLayout;
 import android.widget.BaseAdapter;
 import android.widget.ImageView;
 
 public class ImageList extends ListActivity {
 	private ArrayList<String> mImageList;
-	private LruCache<Long, Bitmap> mRamCache;
 	public GalleryLayout mGalleryLayout;
 	private ImageAnim mImageAnimObj;
 	private ImageListAdapter mAdapter;
+	private CacheAndAsyncWork mCacheAndAsyncWork;
+	private Config mConfig;
+	private GroupImageAnim mGroupImageAnim;
 	
 	private void fetchImageList(int album_index){
 		
@@ -49,7 +42,7 @@ public class ImageList extends ListActivity {
 	
 		mImageList = new ArrayList<String>();
 		
-		mGalleryLayout = new GalleryLayout(1080);
+		mGalleryLayout = new GalleryLayout(1080, Config.IMAGE_LIST_THUMBNAIL_PADDING);
 		
 		galleryList.moveToPosition(album_index);
 		
@@ -85,21 +78,23 @@ public class ImageList extends ListActivity {
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
+		
+		requestWindowFeature(Window.FEATURE_NO_TITLE);
 		setContentView(R.layout.activity_image_list);
 		
 		int album_index = getIntent().getIntExtra (Config.ALBUM_INDEX, 0);
 		fetchImageList(album_index);						
 		
-		mRamCache = new LruCache<Long, Bitmap>(Config.RAM_CACHE_SIZE_KB){
-			protected int sizeOf(Long key, Bitmap bmp){
-				return (bmp.getByteCount()/1024);
-			}
-		};
-
 		mAdapter = new ImageListAdapter(this);
 		setListAdapter(mAdapter);
 		
-		mImageAnimObj = new ImageAnim();
+		mImageAnimObj = new ImageAnim(this);
+		
+		mCacheAndAsyncWork = new CacheAndAsyncWork();
+		
+		mConfig = new Config(this);
+	
+		mGroupImageAnim = new GroupImageAnim(getIntent().getIntArrayExtra(Config.CLICK_ITEM_INFO));
 	}
 	
 	@Override
@@ -108,110 +103,7 @@ public class ImageList extends ListActivity {
 		//getMenuInflater().inflate(R.menu.activity_gallery_list, menu);
 		return true;
 	}
-		
-	private synchronized Bitmap getBitmapFromRamCache(long key){
-		return mRamCache.get(key);	
-	}
 	
-	private synchronized void addBitmapToRamCache(long key, Bitmap bmp){
-		if (null == getBitmapFromRamCache(key)){
-			mRamCache.put(key, bmp);
-		}
-	}
-	
-	private synchronized Bitmap clipSlimFlatImage(String path, int iWidth, int iHeight, int dWidth, int dHeight) {
-		Bitmap bitmap = null;
-
-		try {
-			BitmapRegionDecoder mDecoder = BitmapRegionDecoder.newInstance(path, true);
-
-			if (mDecoder != null) {
-				Rect mRect = new Rect();
-
-				float ratio = (float)dHeight / (float)dWidth;
-				if(ratio > 1.0f) {
-					int realHeight = (int)(iWidth*ratio);
-					int left = 0;
-					int top = (iHeight - realHeight) / 2;
-					int right = iWidth;
-					int bottom = top + realHeight;
-
-					mRect.set(left, top, right, bottom);
-				}
-				else {
-					int realWidth = (int)(iHeight/ratio);
-					int left = (iWidth - realWidth) / 2;
-					int top = 0;
-					int right = left + realWidth;
-					int bottom = iHeight;
-
-					mRect.set(left, top, right, bottom);
-				}
-
-				bitmap = mDecoder.decodeRegion(mRect, null);
-			}
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		return bitmap;
-	}
-
-	private synchronized Bitmap adjustThumbmail(Bitmap thumb, int outWidth,
-			int outHeight, int imagePosition, int crop) {
-		
-		if(thumb != null) {
-			float ratio = (float)thumb.getHeight() / (float)thumb.getWidth();
-	        String path = mImageList.get(imagePosition);
-
-			//Crop the image a little if it is TOO slim or TOO flat
-			if(1 == crop) {
-				BitmapFactory.Options bitmapFactoryOptions = new BitmapFactory.Options();
-
-				bitmapFactoryOptions.inJustDecodeBounds = true;
-				BitmapFactory.decodeFile(path, bitmapFactoryOptions);
-				
-				Bitmap clipBitmap = clipSlimFlatImage(path,
-						bitmapFactoryOptions.outWidth,
-						bitmapFactoryOptions.outHeight, outWidth, outHeight);
-
-				Log.v("t-gallery", "crop image width: " + bitmapFactoryOptions.outWidth + "  , height: " + bitmapFactoryOptions.outHeight);
-				if (clipBitmap != null) {
-					thumb.recycle();
-					
-					thumb = Bitmap.createScaledBitmap(clipBitmap, outWidth, outHeight, false);
-							
-					if (!clipBitmap.isRecycled()) {
-						clipBitmap.recycle();
-					}
-				}
-				return thumb;
-			}
-
-			//Load original image instead of thumbnail if we enlarge it too-much
-			ratio = (float)thumb.getWidth() / (float) outWidth;
-			if (ratio <= 0.5f) {
-
-				thumb.recycle();
-
-				BitmapFactory.Options bitmapFactoryOptions = new BitmapFactory.Options();
-
-				bitmapFactoryOptions.inJustDecodeBounds = true;
-				BitmapFactory.decodeFile(path, bitmapFactoryOptions);
-				
-				bitmapFactoryOptions.inJustDecodeBounds = false;
-				bitmapFactoryOptions.inSampleSize = bitmapFactoryOptions.outWidth / outWidth;
-				thumb = BitmapFactory.decodeFile(path, bitmapFactoryOptions);
-
-				Log.v("t-gallery", "load original ratio: "+ratio + "   ,inSampleSize: "+bitmapFactoryOptions.inSampleSize);
-				return thumb;
-			}
-		}
-		else {
-			//Have this case? Need to check
-		}
-		return thumb;
-	}
-
 	class ImageListAdapter extends BaseAdapter{
 		private Context context;
 
@@ -242,7 +134,7 @@ public class ImageList extends ListActivity {
 			ViewHolder holder;
 			/*Prepare the view (no content yet)*/
 			if (convertView == null){
-				line = new AbsoluteLayout(getApplicationContext());
+				line = new AbsoluteLayout(context);
 				
 	            holder = new ViewHolder();
 	            
@@ -251,13 +143,16 @@ public class ImageList extends ListActivity {
 	            	holder.icons[i].setBackgroundColor(0xFF000000);
 	            	holder.icons[i].setAdjustViewBounds(true);
 					holder.icons[i].setScaleType(ImageView.ScaleType.CENTER_CROP);
-					holder.icons[i].setPadding(Config.THUMBNAIL_PADDING, Config.THUMBNAIL_PADDING, Config.THUMBNAIL_PADDING, Config.THUMBNAIL_PADDING);
+					holder.icons[i].setPadding(
+							Config.IMAGE_LIST_THUMBNAIL_PADDING,
+							Config.IMAGE_LIST_THUMBNAIL_PADDING,
+							Config.IMAGE_LIST_THUMBNAIL_PADDING,
+							Config.IMAGE_LIST_THUMBNAIL_PADDING);
 					
 	    			line.addView(holder.icons[i], new AbsoluteLayout.LayoutParams(Config.THUMBNAIL_BOUND_WIDTH,Config.THUMBNAIL_BOUND_HEIGHT,0,0));
 	            }
 				
 				line.setTag(R.id.data_holder, holder);
-				line.setTag(R.id.recyclable, true);
 			}
 			else {
 				line = (AbsoluteLayout)convertView;
@@ -280,21 +175,23 @@ public class ImageList extends ListActivity {
 	        		holder.icons[i].setVisibility(View.GONE);
 	        	}
 	        	else {
-	        		Bitmap bmp = getBitmapFromRamCache(currentLine.getImage(i).id);
+	        		Bitmap bmp = mCacheAndAsyncWork.getBitmapFromRamCache(currentLine.getImage(i).id);
 	        		ImageCell image = currentLine.getImage(i);
 	      
 	        		
-	        		holder.icons[i].setLayoutParams(new AbsoluteLayout.LayoutParams(image.outWidth+2*Config.THUMBNAIL_PADDING, image.outHeight+2*Config.THUMBNAIL_PADDING, image.outX, image.outY));
+					holder.icons[i].setLayoutParams(new AbsoluteLayout.LayoutParams(
+									image.outWidth + 2*Config.IMAGE_LIST_THUMBNAIL_PADDING,
+									image.outHeight + 2*Config.IMAGE_LIST_THUMBNAIL_PADDING,
+									image.outX, image.outY));
 	        		holder.icons[i].setVisibility(View.VISIBLE);
 	        		
 	        		if (bmp != null){
 	        			holder.icons[i].setImageBitmap(bmp);
 	        		}
 	        		else {
-	        			BitmapWorkerTask task = new BitmapWorkerTask(holder.icons[i]);
-						task.execute(image.id, (long) image.outWidth,
-								(long) image.outHeight, (long) image.position,
-								(long) image.crop);
+						CacheAndAsyncWork.BitmapWorkerTask task = mCacheAndAsyncWork.new BitmapWorkerTask(
+								holder.icons[i], context.getContentResolver(), mImageList);
+					    task.execute(image.id, (long)image.outWidth, (long)image.outHeight, (long)image.position, (long)image.crop);
 					    holder.task[i] = task;
 					    holder.icons[i].setScaleType(ImageView.ScaleType.FIT_XY);
 					    holder.icons[i].setImageResource(R.drawable.grey);	
@@ -311,78 +208,92 @@ public class ImageList extends ListActivity {
 						}
 					});
 					
-					mImageAnimObj.imageAnim(line, position, i, holder.icons[i]);
+					mImageAnimObj.anim(line, position, i, holder.icons[i]);
 	        	}
 			}
-
+	        
+			mGroupImageAnim.layoutAnim(line, position);
 			return line;
-		}
-		
-		class BitmapWorkerTask extends AsyncTask<Long, Void, Bitmap>{
-
-			private final WeakReference<ImageView> iconReference;
-			private long id;
-			
-			public BitmapWorkerTask(ImageView icon){
-				iconReference = new WeakReference<ImageView>(icon);
-			}
-			
-			@Override
-			protected  Bitmap doInBackground(Long... params) {
-			    BitmapFactory.Options options = new BitmapFactory.Options();
-			    
-			    id = params[0];
-				Bitmap thumb = Thumbnails.getThumbnail(getContentResolver(), id, Thumbnails.MINI_KIND, options);
-				
-				//If handled, adjust will recycle thumb, and return the handled Bitmap
-				thumb = adjustThumbmail(thumb, params[1].intValue(),
-						params[2].intValue(), params[3].intValue(),
-						params[4].intValue());
-
-				return thumb;
-			}
-			
-			public void onPostExecute(Bitmap bitmap){
-				
-				if (iconReference != null && bitmap != null){
-					final ImageView iconView = iconReference.get();
-					
-					if (iconView != null){
-						addBitmapToRamCache(id, bitmap);
-						iconView.setScaleType(ImageView.ScaleType.CENTER_CROP);
-						iconView.setImageBitmap(bitmap);
-					}
-				}
-			}
-			
 		}
 		
 	    class ViewHolder{
 			ImageView icons[] = new ImageView[Config.THUMBNAILS_PER_LINE];
-			BitmapWorkerTask task[] = new BitmapWorkerTask[Config.THUMBNAILS_PER_LINE];
+			CacheAndAsyncWork.BitmapWorkerTask task[] = new CacheAndAsyncWork.BitmapWorkerTask[Config.THUMBNAILS_PER_LINE];
 			boolean inTransient = false;
 		}
-	    
+	}
+	
+	public void entryImageDetail(View v) {
+ 
+		//Store display state
+		int aDisplayState[] = mImageAnimObj.getDisplayStatus();
+		aDisplayState[0] = getListView().getFirstVisiblePosition();
+		aDisplayState[1] = getListView().getLastVisiblePosition();
 		
-		public void entryImageDetail(View v) {
+		int clickItemInfo[] = new int[4];
+		v.getLocationOnScreen (clickItemInfo);
+		clickItemInfo[2] = v.getWidth();
+		clickItemInfo[3] = v.getHeight();
+		
+        final Intent i = new Intent(ImageList.this, ImageDetail.class);
+        i.putStringArrayListExtra(Config.IMAGE_LIST, mImageList);
+        i.putExtra(Config.CLICK_INDEX, v.getId());
+        i.putExtra(Config.CLICK_ITEM_INFO, clickItemInfo);
+        
+        startActivityForResult(i, Config.REQUEST_CODE);
+	}
+	
+	class GroupImageAnim {
+		private boolean stopAnim = false;
+		private int start_location[];
+		
+		GroupImageAnim(int location[]) {
 
-			//Store display state
-			int aDisplayState[] = mImageAnimObj.getDisplayStatus();
-			aDisplayState[0] = getListView().getFirstVisiblePosition();
-			aDisplayState[1] = getListView().getLastVisiblePosition();
+			start_location = location;
+		}
+		
+		private void layoutAnim(AbsoluteLayout line, int childPosition) {
 			
-			int clickItemInfo[] = new int[4];
-			v.getLocationOnScreen (clickItemInfo);
-			clickItemInfo[2] = v.getWidth();
-			clickItemInfo[3] = v.getHeight();
-			
+			if (stopAnim == false) {
+				
+				int contentTop = getWindow().findViewById(Window.ID_ANDROID_CONTENT).getTop();
+				int lineHeight = 0;
 
-	        final Intent i = new Intent(ImageList.this, ImageDetail.class);
-	        i.putStringArrayListExtra(ImageDetail.IMAGE_LIST, mImageList);
-	        i.putExtra(ImageDetail.CLICK_INDEX, v.getId());
-	        i.putExtra(ImageDetail.CLICK_ITEM_INFO, clickItemInfo);
-	        
-	        startActivityForResult(i, Config.REQUEST_CODE);
+				for (int i = 0; i < childPosition; i++) {
+					lineHeight += mGalleryLayout.lines.get(i).getHeight();
+				}
+
+				ImageLineGroup currentLine = mGalleryLayout.lines.get(childPosition);
+				
+				if ((childPosition == (mGalleryLayout.getLineNum() - 1))
+						|| ((lineHeight + currentLine.getHeight()) > (mConfig.screenHeight - contentTop))) {
+					stopAnim = true;
+				}
+				
+				float startX = (float)start_location[0];
+				float startY = (float)start_location[1] + (float) lineHeight / 2.0f;
+
+				float endX = (float) mConfig.screenWidth / 4.0f;
+				float endY = (float) lineHeight + (float) currentLine.getHeight() / 4.0f;
+
+				float fromXDelta = startX - endX;
+				float fromYDelta = startY - endY;
+				TranslateAnimation translateAnimation = new TranslateAnimation(2 * fromXDelta, 0, 2 * fromYDelta, 0);
+				translateAnimation.setDuration(300);
+
+				// Scale Anim
+				ScaleAnimation scaleAnimation = new ScaleAnimation(0.5f,
+						1.0f, 0.5f, 1.0f, Animation.RELATIVE_TO_SELF, 0.5f,
+						Animation.RELATIVE_TO_SELF, 0.5f);
+				scaleAnimation.setDuration(300);
+
+				// Animation set
+				AnimationSet set = new AnimationSet(true);
+				set.addAnimation(translateAnimation);
+				set.addAnimation(scaleAnimation);
+
+				line.startAnimation(set);
+			}
 		}
 	}
 	
@@ -395,7 +306,12 @@ public class ImageList extends ListActivity {
 		static public final int NOT_CHANGE = 0;
 		static public final int BOTTOM_DISPLAY = -1;
 		
-		ImageAnim() {
+		private Context context;
+		
+		ImageAnim(Context context) {
+			
+			this.context = context;
+			
 			mImageLocation = new int[2];
 			for(int i = 0; i < mImageLocation.length; i++) {
 				mImageLocation[i] = -1;
@@ -450,18 +366,21 @@ public class ImageList extends ListActivity {
 			return state;
 		}
 		
-		public void imageAnim(AbsoluteLayout line, int childPosition, int itemIndex, ImageView view) {
+		public void anim(AbsoluteLayout line, int childPosition, int itemIndex, ImageView view) {
 			if (childPosition == mImageLocation[0] && itemIndex == mImageLocation[1]) {
 				
 	        	ImageLineGroup currentLine = mGalleryLayout.lines.get(childPosition);
 	        	ImageCell image = currentLine.getImage(itemIndex);
 	        	
 	    		int outLayout[] = new int[2]; //Width, Height
-	    		imageLayout(outLayout, image.inWidth, image.inHeight);
+	    		
+	    		ImageDetail detailObj = new ImageDetail();
+	    		ImageDetail.ImageDetailFragment fragmentObj = detailObj.new ImageDetailFragment();
+	    		fragmentObj.imageLayout(context, outLayout, image.inWidth, image.inHeight);
 	        	
 	    		//Alpha Anim
 				AlphaAnimation alphaAnimation = new AlphaAnimation(0.2f, 0.6f);  
-				alphaAnimation.setDuration(400);
+				alphaAnimation.setDuration(300);
 				
 	            //Scale Anim
 	        	float toX = (float)image.outWidth/(float)outLayout[0];
@@ -469,7 +388,7 @@ public class ImageList extends ListActivity {
 				ScaleAnimation scaleAnimation = new ScaleAnimation(1 / toX, 1,
 						1 / toY, 1, Animation.RELATIVE_TO_SELF, 0.5f,
 						Animation.RELATIVE_TO_SELF, 0.5f);
-				scaleAnimation.setDuration(400);
+				scaleAnimation.setDuration(300);
 
 	            //Animation set  
 	            AnimationSet set = new AnimationSet(true);
@@ -485,35 +404,6 @@ public class ImageList extends ListActivity {
 				}
 			}
 		}
-		
-		public void imageLayout(int outLayout[], int iWidth, int iHeight) {
-	    	float layoutWidth = 0.0f, layoutHeight = 0.0f;
-	    	
-	    	Point outPoint = new Point();
-	    	getWindowManager().getDefaultDisplay().getSize(outPoint);
-	    	
-	    	int screenWidth = outPoint.x;
-	    	int screenHeight = outPoint.y;
-	    	
-	    	
-			float yRatio = (float)iHeight / (float)iWidth;
-			
-			if (yRatio > 1.0f) {
-				float ratio = (float)screenHeight / (float)iHeight;
-				if (ratio > 4.0f) {
-					layoutHeight = iHeight*4;
-				} else {
-					layoutHeight = screenHeight;
-				}
-				layoutWidth = layoutHeight / yRatio;
-			} else {
-				layoutWidth = screenWidth;
-				layoutHeight = layoutWidth * yRatio;
-			}
-			
-			outLayout[0] = (int)layoutWidth;
-			outLayout[1] = (int)layoutHeight;
-	    }
 	}
 	
 	@Override
@@ -528,7 +418,6 @@ public class ImageList extends ListActivity {
 			int changeState = mImageAnimObj.getChangeState(itemIndex);
 			
 			mAdapter.notifyDataSetChanged();
-
 
 			if (mImageAnimObj.TOP_DISPLAY == changeState) {
 				

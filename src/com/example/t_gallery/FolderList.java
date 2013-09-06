@@ -1,67 +1,107 @@
 package com.example.t_gallery;
 
-import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 
 import android.app.ListActivity;
 import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Color;
-import android.os.AsyncTask;
 import android.os.Bundle;
 import android.provider.MediaStore.Images.Media;
-import android.provider.MediaStore.Images.Thumbnails;
+import android.view.Gravity;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup;
+import android.view.Window;
 import android.widget.AbsoluteLayout;
 import android.widget.BaseAdapter;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
 public class FolderList extends ListActivity {
-	private Cursor mGalleryList;
-	private GalleryLayout mGalleryLayout;
-	ArrayList<String> mAlbumName = new ArrayList<String>();
-	ArrayList<Integer> mAlbumCount = new ArrayList<Integer>();
+	private ArrayList<GalleryLayout> mGalleryLayouts = new ArrayList<GalleryLayout>();
+	private ArrayList<String> mAlbumName = new ArrayList<String>();
+	private ArrayList<Integer> mAlbumCount = new ArrayList<Integer>();
+	private Config mConfig;
+	private int mAlbumIndexArray[];
+	private CacheAndAsyncWork mCacheAndAsyncWork;
 	
-	private void fetchGalleryList(){
+	private void fetchFolderList(){
 		
-		mGalleryList = getContentResolver().query(
+		Cursor galleryList = getContentResolver().query(
 				Config.MEDIA_URI, 
 				Config.ALBUM_PROJECTION, 
 				Config.ALBUM_WHERE_CLAUSE, 
 				null, null);
-	
-		mGalleryLayout = new GalleryLayout(1080);
 		
-		for (int i=0; i<mGalleryList.getCount(); i++){
+		mAlbumIndexArray = new int[galleryList.getCount()];
+		for(int i = 0; i<mAlbumIndexArray.length; i++) {
+			mAlbumIndexArray[i] = -1;
+		}
+		
+		int badFolderNum = 0;
+		
+		for (int i=0; i<galleryList.getCount(); i++){
+
+			galleryList.moveToPosition(i);
 			
-			mGalleryList.moveToPosition(i);
-			
-			String album = mGalleryList.getString(mGalleryList.getColumnIndex(Media.BUCKET_DISPLAY_NAME));
-			mAlbumName.add(album);
+			String album = galleryList.getString(galleryList.getColumnIndex(Media.BUCKET_DISPLAY_NAME));
 			
 			Cursor ImageList = getContentResolver().query(
 					Config.MEDIA_URI, 
 					Config.IMAGE_PROJECTION, 
 					Config.IMAGE_WHERE_CLAUSE, 
-					new String[]{mGalleryList.getString(mGalleryList.getColumnIndex(Media.BUCKET_ID))}, 
+					new String[]{galleryList.getString(galleryList.getColumnIndex(Media.BUCKET_ID))}, 
 					null);
 			
-			mAlbumCount.add(ImageList.getCount());
+			GalleryLayout galleryLayout = null;
+			
+			int albumWidth = 0;
+			if(0 == album.compareTo("Camera")) {
+				albumWidth = mConfig.screenWidth - 2* Config.ALBUM_PADDING;
+				galleryLayout = new GalleryLayout(albumWidth, Config.FOLDER_THUMBNAIL_PADDING);
+			}
+			else {
+				albumWidth = (mConfig.screenWidth - 3* Config.ALBUM_PADDING)/2;
+				galleryLayout = new GalleryLayout(albumWidth, Config.FOLDER_THUMBNAIL_PADDING);
+			}
+			
 			ImageList.moveToFirst();
+
+			while (false == ImageList.isAfterLast() && galleryLayout.getLineNum() < 3) {
+				long id = ImageList.getLong(ImageList.getColumnIndex(Media._ID));
+				int width = ImageList.getInt(ImageList.getColumnIndex(Media.WIDTH));
+				int height = ImageList.getInt(ImageList.getColumnIndex(Media.HEIGHT));
+
+				if (width != 0 && height != 0) {
+					galleryLayout.addImage(id, width, height, i);
+				}
+
+				ImageList.moveToNext();
+			}
+			galleryLayout.addImageFinish();
 			
-			long id = ImageList.getLong(ImageList.getColumnIndex(Media._ID));
-			int width = ImageList.getInt(ImageList.getColumnIndex(Media.WIDTH));
-			int height = ImageList.getInt(ImageList.getColumnIndex(Media.HEIGHT));
-			
-			mGalleryLayout.addImage(id, width, height, i);
+			if(galleryLayout.getLineNum() == 0) {
+				badFolderNum++;
+			}
+			else {
+				if (0 == album.compareTo("Camera")) {
+					mGalleryLayouts.add(0, galleryLayout);
+					mAlbumName.add(0, album);
+					mAlbumCount.add(0, ImageList.getCount());
+
+					storeAlbumIndex(0, i);
+				} else {
+					mGalleryLayouts.add(galleryLayout);
+					mAlbumName.add(album);
+					mAlbumCount.add(ImageList.getCount());
+
+					storeAlbumIndex(i - badFolderNum, i);
+				}
+			}
 		}
-		mGalleryLayout.addImageFinish();
 	}
 	
     @Override
@@ -69,12 +109,42 @@ public class FolderList extends ListActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_folder_list);
         
-        fetchGalleryList();
+        mConfig = new Config(this);
+        
+        fetchFolderList();
+        
         setListAdapter(new FolderListAdapter(this));
+        
+        mCacheAndAsyncWork = new CacheAndAsyncWork();
+    }
+    
+    private void storeAlbumIndex(int index, int value) {
+    	int end = 0;
+    	
+		for(int i = 0; i<mAlbumIndexArray.length; i++) {
+			if(mAlbumIndexArray[i] == -1) {
+				end = i;
+				break;
+			}
+		}
+		
+		if(end == index) {
+			mAlbumIndexArray[index] = value;
+		}
+		else if(index < end) {
+			for(int i = end -1; i >= index; i--) {
+				mAlbumIndexArray[i+1] = mAlbumIndexArray[i];
+			}
+			mAlbumIndexArray[index] = value;
+		}
+		else {
+			//Have not case, maybe add assert
+		}
     }
     
 	class FolderListAdapter extends BaseAdapter {
 		private Context context;
+		private ViewHolder holder;
 
 		public FolderListAdapter(Context context) {
 			super();
@@ -83,7 +153,18 @@ public class FolderList extends ListActivity {
 
 		@Override
 		public int getCount() {
-			return mGalleryLayout.getLineNum();
+			int count = 0;
+			
+			if(mGalleryLayouts.size() == 0) {
+				count = 0;
+			}
+			else if(0 == mAlbumName.get(0).compareTo("Camera")) {
+				count = (mGalleryLayouts.size()/2)+1;
+			}
+			else {
+				count = (mGalleryLayouts.size()+1)/2;
+			}
+			return count;
 		}
 
 		@Override
@@ -98,170 +179,246 @@ public class FolderList extends ListActivity {
 
 		@Override
 		public View getView(int position, View convertView, ViewGroup parent) {
+			LinearLayout line;
 
-			AbsoluteLayout line;			
-			ViewHolder holder;
-			
-			/*Prepare the view (no content yet)*/
-			if (convertView == null){
-				line = new AbsoluteLayout(context);
-				
-	            holder = new ViewHolder();
-	            
-	            for (int i=0; i<Config.THUMBNAILS_PER_LINE; i++){
-	            	//Image
-	            	holder.icons[i] = new ImageView(context);
-	            	holder.icons[i].setBackgroundColor(0xFF000000);
-	            	holder.icons[i].setAdjustViewBounds(true);
-					holder.icons[i].setScaleType(ImageView.ScaleType.CENTER_CROP);
-					holder.icons[i].setPadding(Config.THUMBNAIL_PADDING, Config.THUMBNAIL_PADDING, Config.THUMBNAIL_PADDING, Config.THUMBNAIL_PADDING);
-					
-	    			line.addView(holder.icons[i]);
-	    			
-	    			//Description background image
-	    			holder.backgrounds[i] = new ImageView(context);
-	            	holder.backgrounds[i].setAdjustViewBounds(true);
-					holder.backgrounds[i].setScaleType(ImageView.ScaleType.CENTER_CROP);
-					holder.backgrounds[i].setAlpha(100);
-					holder.backgrounds[i].setPadding(Config.THUMBNAIL_PADDING, Config.THUMBNAIL_PADDING, Config.THUMBNAIL_PADDING, Config.THUMBNAIL_PADDING);
-					line.addView(holder.backgrounds[i]);
-					
-					//Album name
-					holder.albumNames[i] = new TextView(context);
-					holder.albumNames[i].setTextColor(Color.WHITE);
-					holder.albumNames[i].setTextSize(18);
-					line.addView(holder.albumNames[i]);
-					
-					//Album count
-					holder.counts[i] = new TextView(context);
-					holder.counts[i].setTextColor(Color.WHITE);
-					holder.counts[i].setTextSize(15);
-					line.addView(holder.counts[i]);
-	            }
-				
-				line.setTag(R.id.data_holder, holder);
+			holder = null;
+			if (convertView == null) {
+				line = new LinearLayout(context);
+			} else {
+				line = (LinearLayout) convertView;
 			}
-			else {
-				line = (AbsoluteLayout)convertView;
-				holder = (ViewHolder)(line.getTag(R.id.data_holder)); 
+
+			if (position == 0) {
+				AbsoluteLayout albumLayout = new AbsoluteLayout(context);
 				
-				for (int i=0; i<Config.THUMBNAILS_PER_LINE; i++){
-					if (holder.task[i] != null){
-						holder.task[i].cancel(true);
-						holder.task[i] = null;
-					}
+				ImageLineGroup currentLine = mGalleryLayouts.get(0).lines.get(0);
+				
+				int hPad = (mConfig.screenWidth - currentLine.width)/2;
+				line.setPadding(hPad, Config.ALBUM_PADDING, hPad, Config.ALBUM_PADDING / 2);
+				
+				setView(line, albumLayout, convertView, 0, 0, Config.CAMARA_ALBUM_HEIGHT);
+				
+				line.addView(albumLayout);
+			} else {
+				line.setPadding(Config.ALBUM_PADDING, Config.ALBUM_PADDING / 2,
+						Config.ALBUM_PADDING, Config.ALBUM_PADDING / 2);
+					
+				// First album
+				int albumPosition = (position - 1) * 2 + 1;
+				AbsoluteLayout fristAlbum = new AbsoluteLayout(context);
+								
+				setView(line, fristAlbum, convertView, albumPosition, 0, Config.COMMON_ALBUM_HEIGHT);
+				line.addView(fristAlbum);
+
+				int temp = mGalleryLayouts.size();
+				// Second album
+				if (albumPosition < (mGalleryLayouts.size() - 1)) {
+					albumPosition += 1;
+					AbsoluteLayout secondAlbum = new AbsoluteLayout(context);
+
+					setView(line, secondAlbum, convertView, albumPosition, 1, Config.COMMON_ALBUM_HEIGHT);
+					line.addView(secondAlbum);
 				}
-			}
-			
-			ImageLineGroup currentLine = mGalleryLayout.lines.get(position);
-			
-			//Fill in the content
-	        for (int i=0; i< Config.THUMBNAILS_PER_LINE; i++){
-
-	        	if (i >= currentLine.getImageNum()){
-	        		holder.icons[i].setVisibility(View.GONE);
-	        		holder.backgrounds[i].setVisibility(View.GONE);
-	        		holder.albumNames[i].setVisibility(View.GONE);
-	        		holder.counts[i].setVisibility(View.GONE);
-	        	}
-	        	else {
-	        		ImageCell image = currentLine.getImage(i);
-	      
-	        		holder.icons[i].setLayoutParams(new AbsoluteLayout.LayoutParams(image.outWidth+2*Config.THUMBNAIL_PADDING, image.outHeight+2*Config.THUMBNAIL_PADDING, image.outX, image.outY));
-	        		holder.icons[i].setVisibility(View.VISIBLE);
-	        		
-	        	    BitmapWorkerTask task = new BitmapWorkerTask(holder.icons[i]);
-					task.execute(image.id);
-					holder.task[i] = task;
-					holder.icons[i].setScaleType(ImageView.ScaleType.FIT_XY);
-					holder.icons[i].setImageResource(R.drawable.grey);
-					
-					holder.icons[i].setId(image.position);
-
-					holder.icons[i].setOnClickListener(new OnClickListener() {
-						@Override
-						public void onClick(View v) {
-							entryImageList(v);
-						}
-					});
-					
-					//Album background image layout params
-					holder.backgrounds[i].setVisibility(View.VISIBLE);
-	        		holder.backgrounds[i].setLayoutParams(new AbsoluteLayout.LayoutParams(image.outWidth+2*Config.THUMBNAIL_PADDING, 
-	        				Config.ALBUM_DESCRIPTION_HEIGHT, 
-	        				image.outX, 
-	        				image.outY + (image.outHeight+2*Config.THUMBNAIL_PADDING - Config.ALBUM_DESCRIPTION_HEIGHT)));
-	        		holder.backgrounds[i].setImageResource(R.drawable.grey);
-	        		
-	        		//Album name layout params
-	        		holder.albumNames[i].setLayoutParams(new AbsoluteLayout.LayoutParams(image.outWidth+2*Config.THUMBNAIL_PADDING, 
-	        				Config.DESCRIPTION_TEXT_HEIGHT, 
-	        				image.outX + 20, 
-	        				image.outY + (image.outHeight+2*Config.THUMBNAIL_PADDING - Config.ALBUM_DESCRIPTION_HEIGHT)));
-	        		holder.albumNames[i].setVisibility(View.VISIBLE);
-	        		holder.albumNames[i].setText(mAlbumName.get(image.position));
-	        		
-	        		//Album name layout params
-	        		holder.counts[i].setLayoutParams(new AbsoluteLayout.LayoutParams(image.outWidth+2*Config.THUMBNAIL_PADDING, 
-	        				Config.DESCRIPTION_TEXT_HEIGHT, 
-	        				image.outX + 20, 
-	        				image.outY + (image.outHeight+2*Config.THUMBNAIL_PADDING - Config.ALBUM_DESCRIPTION_HEIGHT)+Config.DESCRIPTION_TEXT_HEIGHT));
-	        		holder.counts[i].setVisibility(View.VISIBLE);
-	        		holder.counts[i].setText(mAlbumCount.get(image.position).toString());
-	        	}
 			}
 
 			return line;
 		}
-		
-	    private void entryImageList(View view) {
-	    	
-	        final Intent i = new Intent(FolderList.this, ImageList.class);
-	        i.putExtra(Config.ALBUM_INDEX, view.getId());
-	        
-	        startActivity(i);
-	    }
-		
-	    class ViewHolder{
-			ImageView icons[] = new ImageView[Config.THUMBNAILS_PER_LINE];
-			BitmapWorkerTask task[] = new BitmapWorkerTask[Config.THUMBNAILS_PER_LINE];
-			
-			TextView albumNames[] = new TextView[Config.THUMBNAILS_PER_LINE];
-			TextView counts[] = new TextView[Config.THUMBNAILS_PER_LINE];
-			ImageView backgrounds[] = new ImageView[Config.THUMBNAILS_PER_LINE];
-		}
-	    
-		class BitmapWorkerTask extends AsyncTask<Long, Void, Bitmap>{
 
-			private final WeakReference<ImageView> iconReference;
-			private long id;
-			
-			public BitmapWorkerTask(ImageView icon){
-				iconReference = new WeakReference<ImageView>(icon);
-			}
-			
-			@Override
-			protected  Bitmap doInBackground(Long... params) {
-			    BitmapFactory.Options options = new BitmapFactory.Options();
-			    
-			    id = params[0];
-				Bitmap thumb = Thumbnails.getThumbnail(getContentResolver(), id, Thumbnails.MINI_KIND, options);
+		private void setView(LinearLayout parent, AbsoluteLayout line, View convertView,
+				int albumPosition, int locate, int album_max_height) {
 
-				return thumb;
-		
-			}
-			
-			public void onPostExecute(Bitmap bitmap){
-				
-				if (iconReference != null && bitmap != null){
-					final ImageView iconView = iconReference.get();
-					
-					if (iconView != null){
-						iconView.setScaleType(ImageView.ScaleType.CENTER_CROP);
-						iconView.setImageBitmap(bitmap);
+			/* Prepare the view (no content yet) */
+			if (holder == null) {
+				if (convertView == null) {
+					holder = new ViewHolder();
+
+					for (int i = 0; i < Config.THUMBNAILS_PER_LINE * 4; i++) {
+						// Image
+						holder.icons[i] = new ImageView(context);
+						holder.icons[i].setBackgroundColor(0xFF000000);
+						holder.icons[i].setAdjustViewBounds(true);
+						holder.icons[i].setScaleType(ImageView.ScaleType.CENTER_CROP);
+						holder.icons[i].setVisibility(View.GONE);
+						holder.icons[i].setPadding(Config.FOLDER_THUMBNAIL_PADDING,
+								Config.FOLDER_THUMBNAIL_PADDING,
+								Config.FOLDER_THUMBNAIL_PADDING,
+								Config.FOLDER_THUMBNAIL_PADDING);
+
+						line.addView(holder.icons[i]);
+					}
+
+					// Album Description
+					for (int i = 0; i < 2; i++) {
+						holder.albumDesps[i] = new TextView(context);
+						holder.albumDesps[i].setTextColor(Color.WHITE);
+						holder.albumDesps[i].setTextSize(18);
+						holder.albumDesps[i].setVisibility(View.GONE);
+						holder.albumDesps[i].setGravity(Gravity.CENTER);
+						holder.albumDesps[i].setAlpha(0.6f);
+						line.addView(holder.albumDesps[i]);
+					}
+
+					parent.setTag(R.id.data_holder, holder);
+				} else {
+					holder = (ViewHolder) (parent.getTag(R.id.data_holder));
+
+					for (int i = 0; i < Config.THUMBNAILS_PER_LINE * 4; i++) {
+						if (holder.task[i] != null) {
+							holder.task[i].cancel(true);
+							holder.task[i] = null;
+						}
 					}
 				}
 			}
+
+			int shiftLength = locate * (mConfig.screenWidth-Config.ALBUM_PADDING)/2;
+			int shiftIconIndex = 2*locate * Config.THUMBNAILS_PER_LINE;
+			
+			ImageLineGroup firstLine = mGalleryLayouts.get(albumPosition).lines.get(0);
+			
+			// Fill in the content
+			for (int i = 0; i < firstLine.getImageNum(); i++) {
+				ImageCell image = firstLine.getImage(i);
+				
+				if (image.outY < album_max_height) {
+
+					holder.icons[i + shiftIconIndex].setVisibility(View.VISIBLE);
+
+					int height = image.outY + image.outHeight + 2
+							* Config.FOLDER_THUMBNAIL_PADDING;
+
+					if (height <= album_max_height) {
+						holder.icons[i + shiftIconIndex].setLayoutParams(new AbsoluteLayout.LayoutParams(
+										image.outWidth + 2*Config.FOLDER_THUMBNAIL_PADDING,
+										image.outHeight + 2*Config.FOLDER_THUMBNAIL_PADDING,
+										image.outX + shiftLength, image.outY));
+						holder.icons[i + shiftIconIndex].setScaleType(ImageView.ScaleType.FIT_XY);
+					} else {
+						holder.icons[i + shiftIconIndex].setLayoutParams(new AbsoluteLayout.LayoutParams(
+										image.outWidth + 2*Config.FOLDER_THUMBNAIL_PADDING,
+										album_max_height - image.outY,
+										image.outX + shiftLength,
+										image.outY + Config.FOLDER_THUMBNAIL_PADDING));
+					}
+
+					CacheAndAsyncWork.BitmapWorkerTask task = mCacheAndAsyncWork.new BitmapWorkerTask(
+							holder.icons[i + shiftIconIndex], context.getContentResolver(), null);
+					task.execute(image.id);
+					holder.task[i + shiftIconIndex] = task;
+					holder.icons[i + shiftIconIndex].setImageResource(R.drawable.grey);
+
+					holder.icons[i + shiftIconIndex].setId(mAlbumIndexArray[albumPosition]);
+					holder.icons[i + shiftIconIndex].setOnClickListener(new OnClickListener() {
+								@Override
+								public void onClick(View v) {
+									entryImageList(v);
+								}
+							});
+				}
+			}
+
+			if (firstLine.getHeight() < album_max_height) {
+				
+				shiftIconIndex += Config.THUMBNAILS_PER_LINE;
+				
+				if(mGalleryLayouts.get(albumPosition).getLineNum() > 1) {
+						
+					ImageLineGroup secondLine = mGalleryLayouts.get(albumPosition).lines.get(1);
+					
+					for (int i = 0; i < secondLine.getImageNum(); i++) {
+						ImageCell image = secondLine.getImage(i);
+						int adjustY = image.outY + firstLine.getHeight();
+						
+						if (adjustY < album_max_height) {
+							holder.icons[i + shiftIconIndex].setVisibility(View.VISIBLE);
+
+							int height = adjustY + image.outHeight + 2* Config.FOLDER_THUMBNAIL_PADDING;
+
+							if (height <= album_max_height) {
+								holder.icons[i + shiftIconIndex].setLayoutParams(new AbsoluteLayout.LayoutParams(
+												image.outWidth + 2*Config.FOLDER_THUMBNAIL_PADDING,
+												image.outHeight + 2*Config.FOLDER_THUMBNAIL_PADDING,
+												image.outX + shiftLength, adjustY));
+								holder.icons[i + shiftIconIndex].setScaleType(ImageView.ScaleType.FIT_XY);
+							} else {
+								holder.icons[i + shiftIconIndex].setLayoutParams(new AbsoluteLayout.LayoutParams(
+												image.outWidth + 2*Config.FOLDER_THUMBNAIL_PADDING,
+												album_max_height - adjustY,
+												image.outX + shiftLength,
+												adjustY + Config.FOLDER_THUMBNAIL_PADDING));
+							}
+
+							CacheAndAsyncWork.BitmapWorkerTask task = mCacheAndAsyncWork.new BitmapWorkerTask(
+									holder.icons[i + shiftIconIndex], context.getContentResolver(), null);
+							task.execute(image.id);
+							holder.task[i + shiftIconIndex] = task;
+							holder.icons[i + shiftIconIndex].setImageResource(R.drawable.grey);
+
+							holder.icons[i + shiftIconIndex].setId(mAlbumIndexArray[albumPosition]);
+							holder.icons[i + shiftIconIndex].setOnClickListener(new OnClickListener() {
+										@Override
+										public void onClick(View v) {
+											entryImageList(v);
+										}
+									});
+						}
+					}
+				}
+				else {
+					holder.icons[shiftIconIndex].setVisibility(View.VISIBLE);
+					holder.icons[shiftIconIndex].setLayoutParams(new AbsoluteLayout.LayoutParams(
+							firstLine.getWidth(),
+							album_max_height - firstLine.getHeight(),
+							shiftLength,
+							firstLine.getHeight() + Config.FOLDER_THUMBNAIL_PADDING));
+					holder.icons[shiftIconIndex].setImageResource(R.drawable.placehold);
+					
+					holder.icons[shiftIconIndex].setId(mAlbumIndexArray[albumPosition]);
+					holder.icons[shiftIconIndex].setOnClickListener(new OnClickListener() {
+								@Override
+								public void onClick(View v) {
+									entryImageList(v);
+								}
+							});
+				}
+			}
+
+			int	despY = album_max_height - Config.ALBUM_DESCRIPTION_HEIGHT + Config.FOLDER_THUMBNAIL_PADDING;
+
+			// Fill Album Description
+			holder.albumDesps[locate].setVisibility(View.VISIBLE);
+			holder.albumDesps[locate].setLayoutParams(new AbsoluteLayout.LayoutParams(
+					firstLine.getWidth() - 2*Config.FOLDER_THUMBNAIL_PADDING,
+					Config.ALBUM_DESCRIPTION_HEIGHT,
+					Config.FOLDER_THUMBNAIL_PADDING + shiftLength,
+					despY));
+			holder.albumDesps[locate].setVisibility(View.VISIBLE);
+			holder.albumDesps[locate].setBackgroundResource(R.drawable.grey);
+			holder.albumDesps[locate].setText(mAlbumName.get(albumPosition)
+					+ " (" + mAlbumCount.get(albumPosition).toString() + ")");
+		}
+
+	    class ViewHolder{
+			ImageView icons[] = new ImageView[Config.THUMBNAILS_PER_LINE*4];
+			CacheAndAsyncWork.BitmapWorkerTask task[] = new CacheAndAsyncWork.BitmapWorkerTask[Config.THUMBNAILS_PER_LINE*4];
+			
+			TextView albumDesps[] = new TextView[2];
 		}
 	}
+	
+    public void entryImageList(View view) {
+    	
+        final Intent i = new Intent(FolderList.this, ImageList.class);
+        
+		int clickItemInfo[] = new int[2];
+		view.getLocationOnScreen(clickItemInfo);
+		
+		int contentTop = getWindow().findViewById(Window.ID_ANDROID_CONTENT).getTop();
+		clickItemInfo[1] -= contentTop;
+		
+        i.putExtra(Config.CLICK_ITEM_INFO, clickItemInfo);
+        i.putExtra(Config.ALBUM_INDEX, view.getId());
+        
+        startActivity(i);
+    }
 }

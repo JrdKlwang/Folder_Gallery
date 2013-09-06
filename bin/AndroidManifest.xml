@@ -25,6 +25,7 @@
         </activity>
         <activity
             android:name=".ImageList"
+            android:theme="@style/Theme.Transparent"
             android:label="@string/title_activity_image_list" >
             <meta-data
                 android:name="android.support.PARENT_ACTIVITY"

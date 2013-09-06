@@ -1,7 +1,10 @@
 package com.example.t_gallery;
 
+import android.content.Context;
+import android.graphics.Point;
 import android.net.Uri;
 import android.provider.MediaStore.Images.Media;
+import android.view.WindowManager;
 
 class Config {
 	/* Application configuration */
@@ -13,7 +16,8 @@ class Config {
 	static public final int THUMBNAIL_HEIGHT = 132;
 	static public final int THUMBNAIL_BOUND_WIDTH = 264;
 	static public final int THUMBNAIL_BOUND_HEIGHT = 264;
-	static public final int THUMBNAIL_PADDING = 10;
+	static public final int IMAGE_LIST_THUMBNAIL_PADDING = 10;
+	static public final int FOLDER_THUMBNAIL_PADDING = 5;
 
 	/* RAM cache */
 	static public final int RAM_CACHE_SIZE_KB = (int) (Runtime.getRuntime().maxMemory() / 4096);
@@ -33,11 +37,31 @@ class Config {
 	static public final int COLLAPSE_SHORTCUT_STAY_DURATION = 2000;
 
 	static public final float MAX_WIDTH_HEIGHT_RATIO = 4.0f;
-	static public final int ALBUM_DESCRIPTION_HEIGHT = 130;
-	static public final int DESCRIPTION_TEXT_HEIGHT = 60;
+	static public final int ALBUM_DESCRIPTION_HEIGHT = 120;
+	static public final int ALBUM_PADDING = 50;
+	static public final int CAMARA_ALBUM_HEIGHT = 700;
+	static public final int COMMON_ALBUM_HEIGHT = 500;
 
 	/* Request string */
 	static public final int REQUEST_CODE = 0x717;
 	static public final String DISPLAY_ITEM_INDEX = "display_item_index";
 	static public final String ALBUM_INDEX = "album_index";
+	static public final String IMAGE_PATH = "path";
+	static public final String CLICK_ITEM_INFO = "click_item_info";
+	static public final String ANIM_CONTROL = "anim_control";
+	static public final String IMAGE_LIST = "image_list";
+	static public final String CLICK_INDEX = "click_index";
+	
+	/*Screen Info*/
+	public int screenWidth = 0;
+	public int screenHeight = 0;
+	
+	Config(Context context) {
+    	Point outPoint = new Point();
+    	WindowManager wm = (WindowManager)context.getSystemService(Context.WINDOW_SERVICE);
+    	wm.getDefaultDisplay().getSize(outPoint);
+    	
+    	screenWidth = outPoint.x;
+    	screenHeight = outPoint.y;
+	}
 }
