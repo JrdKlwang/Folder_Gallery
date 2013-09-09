@@ -263,10 +263,17 @@ public class FolderList extends ListActivity {
 					holder = (ViewHolder) (parent.getTag(R.id.data_holder));
 
 					for (int i = 0; i < Config.THUMBNAILS_PER_LINE * 4; i++) {
+
+						holder.icons[i].setVisibility(View.GONE);
+
 						if (holder.task[i] != null) {
 							holder.task[i].cancel(true);
 							holder.task[i] = null;
 						}
+					}
+
+					for (int i = 0; i < 2; i++) {
+						holder.albumDesps[i].setVisibility(View.GONE);
 					}
 				}
 			}
