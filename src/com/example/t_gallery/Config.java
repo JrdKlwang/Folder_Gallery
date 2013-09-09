@@ -51,6 +51,7 @@ class Config {
 	static public final String ANIM_CONTROL = "anim_control";
 	static public final String IMAGE_LIST = "image_list";
 	static public final String CLICK_INDEX = "click_index";
+	static public final String THUMBNAIL_ID = "thumbnail_id";
 	
 	/*Screen Info*/
 	public int screenWidth = 0;

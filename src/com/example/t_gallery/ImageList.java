@@ -25,6 +25,7 @@ import android.widget.ImageView;
 
 public class ImageList extends ListActivity {
 	private ArrayList<String> mImageList;
+	private ArrayList<Long> mImageIds;
 	public GalleryLayout mGalleryLayout;
 	private ImageAnim mImageAnimObj;
 	private ImageListAdapter mAdapter;
@@ -41,6 +42,7 @@ public class ImageList extends ListActivity {
 				null, null);
 	
 		mImageList = new ArrayList<String>();
+		mImageIds = new ArrayList<Long>();
 		
 		mGalleryLayout = new GalleryLayout(1080, Config.IMAGE_LIST_THUMBNAIL_PADDING);
 		
@@ -66,11 +68,12 @@ public class ImageList extends ListActivity {
 			
 			if (width != 0 && height != 0){
 				mGalleryLayout.addImage(id, width, height, j);
+				
+				j++;
+				mImageList.add(path);
+				mImageIds.add(id);
 			}
 			listCursor.moveToNext();
-			
-			j++;
-			mImageList.add(path);
 		}
 		mGalleryLayout.addImageFinish();
 	}
@@ -239,6 +242,7 @@ public class ImageList extends ListActivity {
         i.putStringArrayListExtra(Config.IMAGE_LIST, mImageList);
         i.putExtra(Config.CLICK_INDEX, v.getId());
         i.putExtra(Config.CLICK_ITEM_INFO, clickItemInfo);
+        i.putExtra(Config.THUMBNAIL_ID, mImageIds.get(v.getId()));
         
         startActivityForResult(i, Config.REQUEST_CODE);
 	}
@@ -375,8 +379,7 @@ public class ImageList extends ListActivity {
 	    		int outLayout[] = new int[2]; //Width, Height
 	    		
 	    		ImageDetail detailObj = new ImageDetail();
-	    		ImageDetail.ImageDetailFragment fragmentObj = detailObj.new ImageDetailFragment();
-	    		fragmentObj.imageLayout(context, outLayout, image.inWidth, image.inHeight);
+	    		detailObj.imageLayout(context, outLayout, image.inWidth, image.inHeight);
 	        	
 	    		//Alpha Anim
 				AlphaAnimation alphaAnimation = new AlphaAnimation(0.2f, 0.6f);  

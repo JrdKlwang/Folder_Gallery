@@ -176,4 +176,43 @@ public class CacheAndAsyncWork {
 			}
 		}
      }
+
+	class BitmapPathWorkerTask extends AsyncTask<String, Void, Bitmap> {
+
+		private final WeakReference<ImageView> iconReference;
+		private String path;
+		private int scaleSize;
+
+		public BitmapPathWorkerTask(ImageView icon, int scaleSize) {
+			iconReference = new WeakReference<ImageView>(icon);
+			this.scaleSize = scaleSize;
+		}
+
+		@Override
+		protected Bitmap doInBackground(String... params) {
+
+			Bitmap bitmap = null;
+			BitmapFactory.Options options = new BitmapFactory.Options();
+
+			path = params[0];
+
+			options.inJustDecodeBounds = false;
+			options.inSampleSize = scaleSize;
+			bitmap = BitmapFactory.decodeFile(path, options);
+
+			return bitmap;
+		}
+
+		public void onPostExecute(Bitmap bitmap) {
+
+			if (iconReference != null && bitmap != null) {
+				final ImageView iconView = iconReference.get();
+
+				if (iconView != null) {
+					iconView.setScaleType(ImageView.ScaleType.CENTER_CROP);
+					iconView.setImageBitmap(bitmap);
+				}
+			}
+		}
+	}
 }
