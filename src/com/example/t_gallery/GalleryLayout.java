@@ -120,18 +120,18 @@ class ImageSingleLineGroup extends ImageLineGroup{
 		/*First Round, to resize all picture as high as MAX_HEIGHT*/
 		for (int i=0; i<imageList.size(); i++){
 			ImageCell image = imageList.get(i);
-			image.outHeight = MAX_HEIGHT;
+			image.outHeight = MAX_HEIGHT - 2*thumbnail_pad;
 			image.outWidth = (image.inWidth*image.outHeight)/image.inHeight;
 			
-			contentWidth += image.outWidth;
+			contentWidth += image.outWidth + 2*thumbnail_pad;
 		}
 		
 		if (contentWidth > maxContentWidth){
 			for (int i=0; i<imageList.size(); i++){
 				ImageCell image = imageList.get(i);
 				
-				image.outHeight = (image.outHeight*maxContentWidth)/contentWidth;
-				image.outWidth = (image.outWidth*maxContentWidth)/contentWidth;
+				image.outHeight = ((image.outHeight + 2*thumbnail_pad)*maxContentWidth)/contentWidth - 2*thumbnail_pad;
+				image.outWidth = ((image.outWidth + 2*thumbnail_pad)*maxContentWidth)/contentWidth - 2*thumbnail_pad;
 			}
 		}
 		
@@ -168,21 +168,14 @@ class ImageSingleLineGroup extends ImageLineGroup{
 		
 		layout();
 		
-		int contentWidth = 0;
-		
-		for (int i=0; i<imageList.size(); i++){
-			ImageCell image = imageList.get(i);			
-			contentWidth += (image.outWidth + 2*thumbnail_pad);
-		}
-		
-		if (contentWidth < (totalWidth-30)){
+		if (width < (totalWidth-30)){
 			return true;
 		}
 		else {
 			return false;
 		}
 
-	}	
+	}
 }
 
 class ImageProcessBuffer{	
