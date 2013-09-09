@@ -379,7 +379,7 @@ public class ImageDetail extends FragmentActivity {
         
         private void imageAnim(int outLayout[]) {
         	AlphaAnimation alphaAnimation = new AlphaAnimation(0.3f, 1.0f);
-        	alphaAnimation.setDuration(400);
+        	alphaAnimation.setDuration(300);
         	mLayout.startAnimation(alphaAnimation);
         		
         	Point outPoint = new Point();
