@@ -19,15 +19,14 @@ package com.example.t_gallery;
 import java.util.ArrayList;
 import java.util.HashMap;
 
-import com.example.t_gallery.CacheAndAsyncWork.BitmapWorkerTask;
-
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Point;
 import android.os.Bundle;
-import android.provider.MediaStore.Images.Thumbnails;
+import android.os.Handler;
+import android.os.Message;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.FragmentManager;
@@ -135,44 +134,12 @@ public class ImageDetail extends FragmentActivity {
 		outLayout[1] = (int)layoutHeight;
     }
 	
-    /**
-     * load the position images 
-     * @param position
-     */
-    private void preLoadPhoto(final Context context) {
+
+    private void loadImageThread(final int position) {
     	
-    	final int position = mPager.getCurrentItem();
+        Log.v("t-gallery", "pre load position: " + position);
     	
-    	if(position > mOldIndex) {
-    		
-    		int reclyceIndex = position - (OFFSET + 1);
-    		
-    		if(reclyceIndex >= 0) {
-				if (mFlipmap.get(reclyceIndex) != null) {
-					mFlipmap.get(reclyceIndex).recycle();
-					mFlipmap.put(reclyceIndex, null);
-					mFlipmap.remove(reclyceIndex);
-				}
-    		}
-    	}
-    	else if(position < mOldIndex){
-    		int reclyceIndex = position + (OFFSET + 1);
-    		
-    		if(reclyceIndex <= (mImageList.size() -1)) {
-				if (mFlipmap.get(reclyceIndex) != null) {
-					mFlipmap.get(reclyceIndex).recycle();
-					mFlipmap.put(reclyceIndex, null);
-					mFlipmap.remove(reclyceIndex);
-				}
-    		}
-    	}
-    	else {
-    		return;
-    	}
-    	
-        mOldIndex = position;
-        
-    	Log.v("t-gallery", "pre load position: " + position);
+    	final Context context = this;
     	
         if (position >= 0 && position < mImageList.size()) {
             new Thread() {
@@ -216,6 +183,55 @@ public class ImageDetail extends FragmentActivity {
         }
     }
     
+    private Handler mHandler = new Handler() {
+        public void handleMessage(android.os.Message msg) {
+        	
+        	int position = msg.arg1;
+        	
+        	loadImageThread(position);
+        };
+    };
+    
+    private void preLoadImage() {
+    	
+    	int position = mPager.getCurrentItem();
+    	
+    	if(position > mOldIndex) {
+    		
+    		int reclyceIndex = position - (OFFSET + 1);
+    		
+    		if(reclyceIndex >= 0) {
+				if (mFlipmap.get(reclyceIndex) != null) {
+					mFlipmap.get(reclyceIndex).recycle();
+					mFlipmap.put(reclyceIndex, null);
+					mFlipmap.remove(reclyceIndex);
+				}
+    		}
+    	}
+    	else if(position < mOldIndex){
+    		int reclyceIndex = position + (OFFSET + 1);
+    		
+    		if(reclyceIndex <= (mImageList.size() -1)) {
+				if (mFlipmap.get(reclyceIndex) != null) {
+					mFlipmap.get(reclyceIndex).recycle();
+					mFlipmap.put(reclyceIndex, null);
+					mFlipmap.remove(reclyceIndex);
+				}
+    		}
+    	}
+    	else {
+    		return;
+    	}
+    	
+        mOldIndex = position;
+        
+        mHandler.removeMessages(1);
+        Message obtainMessage = mHandler.obtainMessage();
+        obtainMessage.what = 1;
+        obtainMessage.arg1 = position;
+        mHandler.sendMessageDelayed(obtainMessage, 100);
+    }
+    
     public class ImagePagerAdapter extends FragmentStatePagerAdapter {  
         private Context context;
   
@@ -232,7 +248,7 @@ public class ImageDetail extends FragmentActivity {
         @Override  
         public Fragment getItem(int position) {
         	
-        	preLoadPhoto(context);
+        	preLoadImage();
         	
         	ImageDetailFragment  detailObj = new ImageDetailFragment(context);
         	
