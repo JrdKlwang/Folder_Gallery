@@ -20,6 +20,7 @@ public class CacheAndAsyncWork {
 	
 	public CacheAndAsyncWork() {
 		if (mRamCache == null) {
+			Log.v("t-galler", "create cache");
 			mRamCache = new LruCache<Long, Bitmap>(Config.RAM_CACHE_SIZE_KB) {
 				protected int sizeOf(Long key, Bitmap bmp) {
 					return (bmp.getByteCount() / 1024);
@@ -143,6 +144,8 @@ public class CacheAndAsyncWork {
 		private ArrayList<String> imageList;
 		
 		public BitmapWorkerTask(ImageView icon, ContentResolver contentResolver, ArrayList<String> imageList){
+			
+			Log.v("t-gallery", "BitmapWorkerTask");
 			iconReference = new WeakReference<ImageView>(icon);
 			this.contentResolver = contentResolver;
 			this.imageList = imageList;

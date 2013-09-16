@@ -2,11 +2,11 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:id="@+id/root_container"
+    android:id="@+id/vertical_root_container"
     tools:context=".FolderList" >
     
     <ListView 
-        android:id="@id/android:list"
+        android:id="@+id/verticalListView"
         android:layout_width="fill_parent"
         android:layout_height="fill_parent"
         android:background="#000000"

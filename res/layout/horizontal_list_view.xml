@@ -1,0 +1,17 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:id="@+id/horizontal_root_container"
+    tools:context=".FolderList" >
+    
+    <com.example.t_gallery.HorizontalListView 
+        android:id="@+id/horizontalListView"
+        android:layout_width="fill_parent"
+        android:layout_height="fill_parent"
+        android:background="#000000"
+        android:divider="#000000"
+        android:alpha="1.0" >
+    </com.example.t_gallery.HorizontalListView >
+    
+</LinearLayout>

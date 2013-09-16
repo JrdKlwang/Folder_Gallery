@@ -11,7 +11,7 @@ class Config {
 	static public final int MAX_ALBUM = 1000;
 	static public final int MAX_PICTURE_IN_ALBUM = 10000;
 
-	static public final int THUMBNAILS_PER_LINE = 5;
+	static public final int THUMBNAILS_PER_LINE = 6;
 	static public final int THUMBNAIL_WIDTH = 132;
 	static public final int THUMBNAIL_HEIGHT = 132;
 	static public final int THUMBNAIL_BOUND_WIDTH = 264;
@@ -53,9 +53,15 @@ class Config {
 	static public final String CLICK_INDEX = "click_index";
 	static public final String THUMBNAIL_ID = "thumbnail_id";
 	
+	//Shared Preference File
+	static public final String PREFS_NAME = "gallery_prefs_file";
+	static public final String SCROLL_IMAGE_SUM = "scroll_image_sum";
+	static public final String IMAGE_LIST_ANIM_ACTIVE = "image_list_anim_active";
+	
 	/*Screen Info*/
 	public int screenWidth = 0;
 	public int screenHeight = 0;
+	public int curent_orientation = 0;
 	
 	Config(Context context) {
     	Point outPoint = new Point();
@@ -64,5 +70,7 @@ class Config {
     	
     	screenWidth = outPoint.x;
     	screenHeight = outPoint.y;
+    	
+    	curent_orientation = context.getResources().getConfiguration().orientation;
 	}
 }
