@@ -10,12 +10,13 @@ import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.os.Bundle;
 import android.provider.MediaStore.Images.Media;
+import android.provider.MediaStore.Images.Thumbnails;
 import android.util.Log;
 import android.view.Menu;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.view.Window;
-import android.view.animation.AlphaAnimation;
 import android.view.animation.Animation;
 import android.view.animation.AnimationSet;
 import android.view.animation.ScaleAnimation;
@@ -103,17 +104,18 @@ public class ImageList extends Activity {
 			setContentView(R.layout.horizontal_list_view);
 			mHorizontalListView = (HorizontalListView) this.findViewById(R.id.horizontalListView);
 			mHorizontalListView.setAdapter(mAdapter);
+			mImageAnimObj = new ImageAnim(this, (ViewGroup)findViewById(R.id.horizontal_root_container));
 		}
 		else {
 	        setContentView(R.layout.vertical_list_view);
 	        mVerticalListView = (ListView) this.findViewById(R.id.verticalListView);
 	        mVerticalListView.setAdapter(mAdapter);
+	        mImageAnimObj = new ImageAnim(this, (ViewGroup)findViewById(R.id.vertical_root_container));
 		}
 		
 		int album_index = getIntent().getIntExtra (Config.ALBUM_INDEX, 0);
 		
-		fetchImageList(album_index);						
-		mImageAnimObj = new ImageAnim(this);
+		fetchImageList(album_index);
 		mCacheAndAsyncWork = new CacheAndAsyncWork();
 		int selectedPosition = restorePrevState(); //Must after fetchImageList
 		
@@ -573,16 +575,21 @@ public class ImageList extends Activity {
 		
 		private int mImageLocation[]; //[0]: ChildPosition, [1]:(itemIndex)Which one in line
 		private int mDisplayState[]; //[0]:firstVisibleIndex, [1]:lastVisibleIndex
+		private int mItemIndex = 0;
 		
 		static public final int TOP_DISPLAY = 1;
 		static public final int NOT_CHANGE = 0;
 		static public final int BOTTOM_DISPLAY = -1;
 		
 		private Context context;
+		private ViewGroup container;
+		private Bitmap bmp = null;
+		private ImageView animImage = null;
 		
-		ImageAnim(Context context) {
+		ImageAnim(Context context, ViewGroup container) {
 			
 			this.context = context;
+			this.container = container;
 			
 			mImageLocation = new int[2];
 			for(int i = 0; i < mImageLocation.length; i++) {
@@ -603,7 +610,7 @@ public class ImageList extends Activity {
 			return mDisplayState;
 		}
 		
-		public void calculateChildPosition(int itemIndex) {
+		public void calculateChildPosition() {
 			
 			mImageLocation[0] = -1;
 			int totalLines = mGalleryLayout.getLineNum();
@@ -611,14 +618,14 @@ public class ImageList extends Activity {
 			int sum = 0;
 			for(int i = 0; i < totalLines; i++) {
 				sum += mGalleryLayout.lines.get(i).imageList.size();
-				if(itemIndex < sum) {
+				if(mItemIndex < sum) {
 					mImageLocation[0] = i;
 					break;
 				}
 			}
 			
 			if (-1 != mImageLocation[0]) {
-				mImageLocation[1] = itemIndex
+				mImageLocation[1] = mItemIndex
 						- (sum - mGalleryLayout.lines.get(mImageLocation[0]).imageList.size());
 			}
 		}
@@ -627,7 +634,8 @@ public class ImageList extends Activity {
 			
 			int state = NOT_CHANGE;
 			
-			calculateChildPosition(itemIndex);
+			mItemIndex = itemIndex;
+			calculateChildPosition();
 			
 			if(mImageLocation[0] <= mDisplayState[0]) {
 				state = TOP_DISPLAY;
@@ -638,70 +646,97 @@ public class ImageList extends Activity {
 			return state;
 		}
 		
-		public void test(int childPosition, int itemIndex, ImageView view) {
+		public void virtualAnimImage() {
 
-	        	ImageLineGroup currentLine = mGalleryLayout.lines.get(childPosition);
-	        	ImageCell image = currentLine.getImage(itemIndex);
-	        	
-	    		int outLayout[] = new int[2]; //Width, Height
-	    		
-	    		Utils.imageLayout(context, outLayout, image.inWidth, image.inHeight);
-	        	
-	    		//Alpha Anim
-				AlphaAnimation alphaAnimation = new AlphaAnimation(0.2f, 0.6f);  
-				alphaAnimation.setDuration(300);
-
-	            //Scale Anim
-	        	float toX = (float)image.outWidth/(float)outLayout[0];
-	        	float toY = (float)image.outHeight/(float)outLayout[1];
-				ScaleAnimation scaleAnimation = new ScaleAnimation(1 / toX, 1,
-						1 / toY, 1, Animation.RELATIVE_TO_SELF, 0.5f,
-						Animation.RELATIVE_TO_SELF, 0.5f);
+			final ViewTreeObserver observer = mVerticalListView.getViewTreeObserver();
+			
+			observer.addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {
 				
-				scaleAnimation.setDuration(300);
+				@Override
+				public boolean onPreDraw() {
+					observer.removeOnPreDrawListener(this);
+					
+					Long id = mImageIds.get(mItemIndex);
+					
+					bmp = mCacheAndAsyncWork.getBitmapFromRamCache(id);
+					
+					if(bmp == null) {
+						bmp = Thumbnails.getThumbnail(context.getContentResolver(), id, Thumbnails.MINI_KIND, null);
+					}
+					
+		        	ImageLineGroup currentLine = mGalleryLayout.lines.get(mImageLocation[0]);
+		        	ImageCell image = currentLine.getImage(mImageLocation[1]);
+		        	
+		    		int outLayout[] = new int[2]; //Width, Height
+		    		
+		    		Utils.imageLayout(context, outLayout, image.inWidth, image.inHeight);
+		    		
+		        	float toX = (float)image.outWidth/(float)outLayout[0];
+		        	float toY = (float)image.outHeight/(float)outLayout[1];
+		        	
+		        	int diff = mImageLocation[0] - mVerticalListView.getFirstVisiblePosition();
+		        	int top = mVerticalListView.getChildAt(diff).getTop();
+		    		
+		    		animImage = new ImageView(context);
+		    		animImage.setImageBitmap(bmp);
+		    		animImage.setX(image.outX);
+		    		animImage.setY(top + image.outY);
+		    		animImage.setAlpha(0.5f);
 
-	            //Animation set  
-	            AnimationSet set = new AnimationSet(true);
-	            set.addAnimation(alphaAnimation); 
-	            set.addAnimation(scaleAnimation); 
-
-	            view.startAnimation(set);
+		    		
+		    		float startX = (float)(mConfig.screenWidth - image.outWidth)/2;
+		    		float startY = (float)(mConfig.screenHeight - image.outHeight)/2;
+		    		
+		    		Log.v("t-gallery", "startX: " + startX + "startY: " + startY);
+		    		
+		    		animImage.setTranslationX(startX);
+		    		animImage.setTranslationY(startY);
+		    		animImage.animate().translationX(image.outX).setDuration(300);
+		    		animImage.animate().translationY(top + image.outY).setDuration(300);
+		    		
+		        	animImage.setScaleX(1/toX);
+		        	animImage.setScaleY(1/toY);
+		        	animImage.animate().scaleX(1).setDuration(300);
+		        	animImage.animate().scaleY(1).setDuration(300).withEndAction(new Runnable(){
+						@Override
+						public void run() {
+							container.removeView(animImage);
+							animImage = null;
+						}
+						
+					});
+					
+					container.addView(animImage, new ViewGroup.LayoutParams(image.outWidth + 2*Config.IMAGE_LIST_THUMBNAIL_PADDING,
+							image.outHeight + 2*Config.IMAGE_LIST_THUMBNAIL_PADDING));
+					
+					for(int i= 0; i < mImageLocation.length; i++) {
+						mImageLocation[i] = -1;
+					}
+					
+					return false;
+				}
+			});
+			
 		}
 		
-		public void anim(AbsoluteLayout line, int childPosition, int itemIndex, ImageView view) {
-			if (childPosition == mImageLocation[0] && itemIndex == mImageLocation[1]) {
+		public void anim(AbsoluteLayout line, int childPosition, int index, ImageView view) {
+			if (childPosition == mImageLocation[0] && index == mImageLocation[1]) {
 				
 	        	ImageLineGroup currentLine = mGalleryLayout.lines.get(childPosition);
-	        	ImageCell image = currentLine.getImage(itemIndex);
-	        	
+	        	ImageCell image = currentLine.getImage(index);
 	    		int outLayout[] = new int[2]; //Width, Height
-	    		
+
 	    		Utils.imageLayout(context, outLayout, image.inWidth, image.inHeight);
 	        	
-	    		//Alpha Anim
-				AlphaAnimation alphaAnimation = new AlphaAnimation(0.2f, 0.6f);  
-				alphaAnimation.setDuration(300);
-				
 	            //Scale Anim
 	        	float toX = (float)image.outWidth/(float)outLayout[0];
 	        	float toY = (float)image.outHeight/(float)outLayout[1];
-				ScaleAnimation scaleAnimation = new ScaleAnimation(1 / toX, 1,
-						1 / toY, 1, Animation.RELATIVE_TO_SELF, 0.5f,
+				ScaleAnimation scaleAnimation = new ScaleAnimation(0.9f, 1,
+						0.9f, 1, Animation.RELATIVE_TO_SELF, 0.5f,
 						Animation.RELATIVE_TO_SELF, 0.5f);
 				scaleAnimation.setDuration(300);
 
-	            //Animation set  
-	            AnimationSet set = new AnimationSet(true);
-	            set.addAnimation(alphaAnimation); 
-	            set.addAnimation(scaleAnimation); 
-
-	            view.startAnimation(set);
-
-	            line.bringChildToFront(view);
-	            
-				for(int i= 0; i < mImageLocation.length; i++) {
-					mImageLocation[i] = -1;
-				}
+	            view.startAnimation(scaleAnimation);
 			}
 		}
 	}
@@ -734,6 +769,8 @@ public class ImageList extends Activity {
 					mVerticalListView.setSelectionFromTop(aImageLocation[0], y);
 				}
 			}
+			
+			mImageAnimObj.virtualAnimImage();
 		}
 		
 		super.onActivityResult(requestCode, resultCode, data);
