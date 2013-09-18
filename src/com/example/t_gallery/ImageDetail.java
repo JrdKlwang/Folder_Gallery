@@ -127,9 +127,8 @@ public class ImageDetail extends FragmentActivity {
 
 							// Image layout
 							int outLayout[] = new int[2]; // Width, Height
-							Utils.imageLayout(context, outLayout,
-									bitmapFactoryOptions.outWidth,
-									bitmapFactoryOptions.outHeight);
+							ImageDetailFragment.imageLayout(outLayout,
+									bitmapFactoryOptions.outWidth, bitmapFactoryOptions.outHeight);
 
 							bitmapFactoryOptions.inJustDecodeBounds = false;
 							bitmapFactoryOptions.inSampleSize = bitmapFactoryOptions.outWidth / outLayout[0];

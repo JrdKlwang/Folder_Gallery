@@ -2,10 +2,8 @@ package com.example.t_gallery;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.Point;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
-import android.util.Log;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -31,14 +29,6 @@ public class ImageDetailFragment extends Fragment {
 	private Long mThumbnailId;
 	private CacheAndAsyncWork mCacheAndAsyncWork;
 
-	/**
-	 * Factory method to generate a new instance of the fragment given an image
-	 * number.
-	 * 
-	 * @param imageNum
-	 *            The image redId to load
-	 * @return A new instance of ImageDetailFragment with imageNum extras
-	 */
 	public void init(String path, int clickItemInfo[], boolean bAnim,
 			int position, Long thumbnailId) {
 
@@ -51,11 +41,6 @@ public class ImageDetailFragment extends Fragment {
 		setArguments(args);
 	}
 
-	/**
-	 * Populate image using a url from extras, use the convenience factory
-	 * method {@link ImageDetailFragment#newInstance(String)} to create this
-	 * fragment.
-	 */
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
@@ -90,11 +75,9 @@ public class ImageDetailFragment extends Fragment {
 
 		// Image layout
 		int outLayout[] = new int[2]; // Width, Height
-		Utils.imageLayout(getActivity(), outLayout, bitmapFactoryOptions.outWidth,
-				bitmapFactoryOptions.outHeight);
+		imageLayout(outLayout, bitmapFactoryOptions.outWidth, bitmapFactoryOptions.outHeight);
 
-		mImageView.setLayoutParams(new FrameLayout.LayoutParams(outLayout[0],
-				outLayout[1], Gravity.CENTER));
+		mImageView.setLayoutParams(new FrameLayout.LayoutParams(outLayout[0], outLayout[1], Gravity.CENTER));
 		mImageView.setScaleType(ImageView.ScaleType.FIT_XY);
 
 		// Image anim
@@ -104,15 +87,11 @@ public class ImageDetailFragment extends Fragment {
 
 		// Image resource
 		if (ImageDetail.getFlipMap().get(position) != null) {
-			Log.v("t-gallery", "exist: " + position);
-
+			//Log.v("t-gallery", "exist: " + position);
 			mImageView.setImageBitmap(ImageDetail.getFlipMap().get(position));
 		} else {
-
-			Log.v("t-gallery", "not exist: " + position);
-
 			int scaleSize = bitmapFactoryOptions.outWidth / outLayout[0];
-
+			//Log.v("t-gallery", "not exist: " + position + "  , scaleSize: " + scaleSize);
 			if (scaleSize > 1) {
 				CacheAndAsyncWork.BitmapPathWorkerTask task = mCacheAndAsyncWork.new BitmapPathWorkerTask(
 						mImageView, scaleSize);
@@ -145,12 +124,10 @@ public class ImageDetailFragment extends Fragment {
 	}
 
 	private void imageAnim(int outLayout[]) {
-		Point outPoint = new Point();
-		getActivity().getWindowManager().getDefaultDisplay().getSize(outPoint);
-
+		
 		// Translate anim
-		int imageX = (outPoint.x - mClickItemInfo[2]) / 2;
-		int imageY = (outPoint.y - mClickItemInfo[3]) / 2;
+		int imageX = (Config.SCREEN_WIDTH - mClickItemInfo[2]) / 2;
+		int imageY = (Config.SCREEN_HEIGHT - Config.STATUS_BAR_HEIGHT - mClickItemInfo[3]) / 2;
 
 		float fromXDelta = (float) mClickItemInfo[0] - (float) imageX;
 		float fromYDelta = (float) mClickItemInfo[1] - (float) imageY;
@@ -158,15 +135,14 @@ public class ImageDetailFragment extends Fragment {
 		float toX = (float) outLayout[0] / (float) mClickItemInfo[2];
 		float toY = (float) outLayout[1] / (float) mClickItemInfo[3];
 		
-		TranslateAnimation translateAnimation = new TranslateAnimation(
-				fromXDelta*toX, 0, fromYDelta*toY, 0);
-		translateAnimation.setDuration(300);
+		TranslateAnimation translateAnimation = new TranslateAnimation(fromXDelta*toX, 0, fromYDelta*toY, 0);
+		translateAnimation.setDuration(Config.ANIM_DURATION);
 
 		// Sacle anim
 		ScaleAnimation scaleAnimation = new ScaleAnimation(1 / toX, 1, 1 / toY,
 				1, Animation.RELATIVE_TO_SELF, 0.5f,
 				Animation.RELATIVE_TO_SELF, 0.5f);
-		scaleAnimation.setDuration(300);
+		scaleAnimation.setDuration(Config.ANIM_DURATION);
 
 		// Animation set
 		AnimationSet set = new AnimationSet(true);
@@ -175,4 +151,29 @@ public class ImageDetailFragment extends Fragment {
 
 		mImageView.startAnimation(set);
 	}
+	
+    public static void imageLayout(int outLayout[], int iWidth, int iHeight) {
+    	
+    	float layoutWidth = 0.0f, layoutHeight = 0.0f;
+    	int contentWidth = Config.SCREEN_WIDTH;
+    	int contentHeight = Config.SCREEN_HEIGHT-Config.STATUS_BAR_HEIGHT;
+    	
+		float yRatio = (float)iHeight / (float)iWidth;
+		
+		if (yRatio > 1.0f) {
+			float ratio = (float)contentWidth / (float)iHeight;
+			if (ratio > 4.0f) {
+				layoutHeight = iHeight*4;
+			} else {
+				layoutHeight = contentHeight;
+			}
+			layoutWidth = layoutHeight / yRatio;
+		} else {
+			layoutWidth = contentWidth;
+			layoutHeight = layoutWidth * yRatio;
+		}
+		
+		outLayout[0] = (int)layoutWidth;
+		outLayout[1] = (int)layoutHeight;
+    }
 }

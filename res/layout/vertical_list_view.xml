@@ -2,8 +2,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:id="@+id/vertical_root_container"
-    tools:context=".FolderList" >
+    android:id="@+id/vertical_root_container" >
     
     <ListView 
         android:id="@+id/verticalListView"

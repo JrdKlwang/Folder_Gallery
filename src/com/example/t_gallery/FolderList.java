@@ -14,7 +14,6 @@ import android.provider.MediaStore.Images.Media;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.Window;
 import android.widget.AbsoluteLayout;
 import android.widget.BaseAdapter;
 import android.widget.ImageView;
@@ -26,9 +25,12 @@ public class FolderList extends Activity {
 	private ArrayList<GalleryLayout> mGalleryLayouts = new ArrayList<GalleryLayout>();
 	private ArrayList<String> mAlbumName = new ArrayList<String>();
 	private ArrayList<Integer> mAlbumCount = new ArrayList<Integer>();
-	private Config mConfig;
 	private int mAlbumIndexArray[];
 	private CacheAndAsyncWork mCacheAndAsyncWork;
+	
+	//Screen Info
+	private int mContentTop = 0;
+	private int mCurrentOrientation = 0;
 	
 	private void fetchFolderList(){
 		
@@ -62,11 +64,11 @@ public class FolderList extends Activity {
 			
 			int maxWidth = 0;
 			
-			if (mConfig.curent_orientation == Configuration.ORIENTATION_LANDSCAPE) {
-				maxWidth = mConfig.screenHeight;
+			if (mCurrentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
+				maxWidth = Config.SCREEN_HEIGHT;
 			} 
 			else {
-				maxWidth = mConfig.screenWidth;
+				maxWidth = Config.SCREEN_WIDTH;
 			}
 			
 			if(0 == album.compareTo("Camera")) {
@@ -118,9 +120,11 @@ public class FolderList extends Activity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
-        mConfig = new Config(this);
+        //Screen Info
+        mCurrentOrientation = this.getResources().getConfiguration().orientation;
+        mContentTop = Config.STATUS_BAR_HEIGHT + Config.TITLE_BAR_HEIGHT;
         
-		if (mConfig.curent_orientation == Configuration.ORIENTATION_LANDSCAPE) {
+		if (mCurrentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
 			setContentView(R.layout.horizontal_list_view);
 			HorizontalListView mListView = (HorizontalListView) this.findViewById(R.id.horizontalListView);
 	        mListView.setAdapter(new FolderListAdapter(this));
@@ -203,11 +207,10 @@ public class FolderList extends Activity {
 
 		@Override
 		public View getView(int position, View convertView, ViewGroup parent) {
-			LinearLayout line;
-
-			holder = null;
-			int contentTop = getWindow().findViewById(Window.ID_ANDROID_CONTENT).getTop();
 			
+			LinearLayout line;
+			holder = null;
+
 			if (convertView == null) {
 				line = new LinearLayout(context);
 			} else {
@@ -220,12 +223,12 @@ public class FolderList extends Activity {
 				int height = 0;
 				if (context.getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE) {
 					
-					height = mConfig.screenHeight - contentTop - 2* Config.ALBUM_PADDING;
+					height = Config.SCREEN_HEIGHT - mContentTop - 2* Config.ALBUM_PADDING;
 					line.setPadding(Config.ALBUM_PADDING, Config.ALBUM_PADDING, Config.ALBUM_PADDING / 2, Config.ALBUM_PADDING);
 				}
 				else {
 					ImageLineGroup currentLine = mGalleryLayouts.get(0).lines.get(0);
-					int hPad = (mConfig.screenWidth - currentLine.width)/2;
+					int hPad = (Config.SCREEN_WIDTH - currentLine.width)/2;
 					
 					height = Config.CAMARA_ALBUM_HEIGHT;
 					line.setPadding(hPad, Config.ALBUM_PADDING, hPad, Config.ALBUM_PADDING / 2);
@@ -240,7 +243,7 @@ public class FolderList extends Activity {
 				if (context.getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE) {
 					line.setPadding(0, Config.ALBUM_PADDING,
 							Config.ALBUM_PADDING / 2, Config.ALBUM_PADDING);
-					height = (mConfig.screenHeight - contentTop - 3*Config.ALBUM_PADDING)/2;
+					height = (Config.SCREEN_HEIGHT - mContentTop - 3*Config.ALBUM_PADDING)/2;
 				}
 				else {
 					line.setPadding(Config.ALBUM_PADDING, Config.ALBUM_PADDING / 2,
@@ -270,21 +273,17 @@ public class FolderList extends Activity {
 		private void setView(LinearLayout parent, AbsoluteLayout line,
 				View convertView, int albumPosition, int locate, int album_max_height) {
 			
-			intView(parent, line, convertView);
-			
 			int shiftWidth = 0;
 			int shiftHeight = 0;
 			
+			intView(parent, line, convertView);
+			
 			if (context.getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE) {
-				
-				int contentTop = getWindow().findViewById(Window.ID_ANDROID_CONTENT).getTop();
-				
 				shiftWidth = 0;
-				shiftHeight = locate * (mConfig.screenHeight - contentTop -Config.ALBUM_PADDING)/2;
+				shiftHeight = locate * (Config.SCREEN_HEIGHT - mContentTop -Config.ALBUM_PADDING)/2;
 			}
 			else {
-				
-				shiftWidth = locate * (mConfig.screenWidth-Config.ALBUM_PADDING)/2;
+				shiftWidth = locate * (Config.SCREEN_WIDTH-Config.ALBUM_PADDING)/2;
 				shiftHeight = 0;
 			}
 			
@@ -481,8 +480,7 @@ public class FolderList extends Activity {
 		int clickItemInfo[] = new int[2];
 		view.getLocationOnScreen(clickItemInfo);
 		
-		int contentTop = getWindow().findViewById(Window.ID_ANDROID_CONTENT).getTop();
-		clickItemInfo[1] -= contentTop;
+		clickItemInfo[1] -= mContentTop;
 		
         i.putExtra(Config.CLICK_ITEM_INFO, clickItemInfo);
         i.putExtra(Config.ALBUM_INDEX, view.getId());
@@ -491,6 +489,6 @@ public class FolderList extends Activity {
         
         startActivity(i);
         
-        overridePendingTransition(R.anim.fade, R.anim.hold);
+        overridePendingTransition(R.anim.out, R.anim.in);
     }
 }

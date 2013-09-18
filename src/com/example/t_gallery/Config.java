@@ -31,7 +31,7 @@ class Config {
 	static public final String IMAGE_WHERE_CLAUSE = Media.BUCKET_ID + " = ?";
 
 	/* UI Effect */
-	static public final int LIST_ANIM_DURATION = 400; /* count in ms */
+	static public final int ANIM_DURATION = 300; /* count in ms */
 
 	static public final int COLLAPSE_SHORTCUT_ANIM_DURATION = 500;
 	static public final int COLLAPSE_SHORTCUT_STAY_DURATION = 2000;
@@ -59,18 +59,8 @@ class Config {
 	static public final String IMAGE_LIST_ANIM_ACTIVE = "image_list_anim_active";
 	
 	/*Screen Info*/
-	public int screenWidth = 0;
-	public int screenHeight = 0;
-	public int curent_orientation = 0;
-	
-	Config(Context context) {
-    	Point outPoint = new Point();
-    	WindowManager wm = (WindowManager)context.getSystemService(Context.WINDOW_SERVICE);
-    	wm.getDefaultDisplay().getSize(outPoint);
-    	
-    	screenWidth = outPoint.x;
-    	screenHeight = outPoint.y;
-    	
-    	curent_orientation = context.getResources().getConfiguration().orientation;
-	}
+	static public int SCREEN_WIDTH = 1080;
+	static public int SCREEN_HEIGHT = 1920;
+	static public int STATUS_BAR_HEIGHT = 75;
+	static public int TITLE_BAR_HEIGHT = 144;
 }
