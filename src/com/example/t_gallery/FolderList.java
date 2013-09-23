@@ -30,7 +30,7 @@ public class FolderList extends Activity {
 	
 	//Screen Info
 	private int mContentTop = 0;
-	private int mCurrentOrientation = 0;
+	private Config mConfig = null;
 	
 	private void fetchFolderList(){
 		
@@ -62,23 +62,22 @@ public class FolderList extends Activity {
 			
 			GalleryLayout galleryLayout = null;
 			
-			int maxWidth = 0;
-			
-			if (mCurrentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
-				maxWidth = Config.SCREEN_HEIGHT;
-			} 
-			else {
-				maxWidth = Config.SCREEN_WIDTH;
-			}
+			int maxWidth = mConfig.currentOrientation == Configuration.ORIENTATION_LANDSCAPE?
+					mConfig.screenHeight : mConfig.screenWidth;
+			int albumWidth = 0;
 			
 			if(0 == album.compareTo("Camera")) {
-				int albumWidth = maxWidth - 2* Config.ALBUM_PADDING;
-				galleryLayout = new GalleryLayout(albumWidth, 0, Config.FOLDER_THUMBNAIL_PADDING, 1);
+				albumWidth = maxWidth - 2* Config.ALBUM_PADDING;
 			}
 			else {
-				int albumWidth = (maxWidth - 3* Config.ALBUM_PADDING)/2;
-				galleryLayout = new GalleryLayout(albumWidth, 0, Config.FOLDER_THUMBNAIL_PADDING, 1);
+				albumWidth = (maxWidth - 3* Config.ALBUM_PADDING)/2;
 			}
+			
+			galleryLayout = new GalleryLayout(albumWidth,
+					0,
+					Config.FOLDER_THUMBNAIL_PADDING,
+					Configuration.ORIENTATION_PORTRAIT,
+					Config.COMMON_FOLDER);
 			
 			ImageList.moveToFirst();
 
@@ -121,10 +120,10 @@ public class FolderList extends Activity {
         super.onCreate(savedInstanceState);
         
         //Screen Info
-        mCurrentOrientation = this.getResources().getConfiguration().orientation;
+        mConfig = new Config(this);
         mContentTop = Config.STATUS_BAR_HEIGHT + Config.TITLE_BAR_HEIGHT;
         
-		if (mCurrentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
+		if (mConfig.currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
 			setContentView(R.layout.horizontal_list_view);
 			HorizontalListView mListView = (HorizontalListView) this.findViewById(R.id.horizontalListView);
 	        mListView.setAdapter(new FolderListAdapter(this));
@@ -221,14 +220,14 @@ public class FolderList extends Activity {
 				AbsoluteLayout albumLayout = new AbsoluteLayout(context);
 				
 				int height = 0;
-				if (context.getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE) {
+				if (mConfig.currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
 					
-					height = Config.SCREEN_HEIGHT - mContentTop - 2* Config.ALBUM_PADDING;
+					height = mConfig.screenHeight - mContentTop - 2* Config.ALBUM_PADDING;
 					line.setPadding(Config.ALBUM_PADDING, Config.ALBUM_PADDING, Config.ALBUM_PADDING / 2, Config.ALBUM_PADDING);
 				}
 				else {
 					ImageLineGroup currentLine = mGalleryLayouts.get(0).lines.get(0);
-					int hPad = (Config.SCREEN_WIDTH - currentLine.width)/2;
+					int hPad = (mConfig.screenWidth - currentLine.width)/2;
 					
 					height = Config.CAMARA_ALBUM_HEIGHT;
 					line.setPadding(hPad, Config.ALBUM_PADDING, hPad, Config.ALBUM_PADDING / 2);
@@ -240,10 +239,10 @@ public class FolderList extends Activity {
 				AbsoluteLayout fristAlbum = new AbsoluteLayout(context);
 				int height = 0;
 				
-				if (context.getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE) {
+				if (mConfig.currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
 					line.setPadding(0, Config.ALBUM_PADDING,
 							Config.ALBUM_PADDING / 2, Config.ALBUM_PADDING);
-					height = (Config.SCREEN_HEIGHT - mContentTop - 3*Config.ALBUM_PADDING)/2;
+					height = (mConfig.screenHeight - mContentTop - 3*Config.ALBUM_PADDING)/2;
 				}
 				else {
 					line.setPadding(Config.ALBUM_PADDING, Config.ALBUM_PADDING / 2,
@@ -278,12 +277,12 @@ public class FolderList extends Activity {
 			
 			intView(parent, line, convertView);
 			
-			if (context.getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE) {
+			if (mConfig.currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
 				shiftWidth = 0;
-				shiftHeight = locate * (Config.SCREEN_HEIGHT - mContentTop -Config.ALBUM_PADDING)/2;
+				shiftHeight = locate * (mConfig.screenHeight - mContentTop -Config.ALBUM_PADDING)/2;
 			}
 			else {
-				shiftWidth = locate * (Config.SCREEN_WIDTH-Config.ALBUM_PADDING)/2;
+				shiftWidth = locate * (mConfig.screenWidth-Config.ALBUM_PADDING)/2;
 				shiftHeight = 0;
 			}
 			
@@ -300,8 +299,6 @@ public class FolderList extends Activity {
 						// Image
 						holder.icons[i] = new GestureImageView(context, 1);
 						holder.icons[i].setBackgroundColor(0xFF000000);
-						holder.icons[i].setAdjustViewBounds(true);
-						holder.icons[i].setScaleType(ImageView.ScaleType.CENTER_CROP);
 						holder.icons[i].setVisibility(View.GONE);
 						holder.icons[i].setPadding(Config.FOLDER_THUMBNAIL_PADDING,
 								Config.FOLDER_THUMBNAIL_PADDING,
@@ -327,13 +324,11 @@ public class FolderList extends Activity {
 					holder = (ViewHolder) (parent.getTag(R.id.data_holder));
 
 					for (int i = 0; i < Config.THUMBNAILS_PER_LINE * 4; i++) {
-
-						holder.icons[i].setVisibility(View.GONE);
-
 						if (holder.task[i] != null) {
 							holder.task[i].cancel(true);
 							holder.task[i] = null;
 						}
+						holder.icons[i].setVisibility(View.GONE);
 					}
 
 					for (int i = 0; i < 2; i++) {
@@ -355,8 +350,8 @@ public class FolderList extends Activity {
 				ImageCell image = firstLine.getImage(i);
 				
 				if (image.outY < album_max_height) {
-
 					holder.icons[i + shiftIconIndex].setVisibility(View.VISIBLE);
+					holder.icons[i + shiftIconIndex].setScaleType(ImageView.ScaleType.FIT_XY);
 
 					int height = image.outY + image.outHeight + 2* Config.FOLDER_THUMBNAIL_PADDING;
 
@@ -364,14 +359,15 @@ public class FolderList extends Activity {
 						holder.icons[i + shiftIconIndex].setLayoutParams(new AbsoluteLayout.LayoutParams(
 										image.outWidth + 2*Config.FOLDER_THUMBNAIL_PADDING,
 										image.outHeight + 2*Config.FOLDER_THUMBNAIL_PADDING,
-										image.outX + shiftWidth, image.outY + shiftHeight));
+										image.outX + shiftWidth,
+										image.outY + shiftHeight));
 						holder.icons[i + shiftIconIndex].setScaleType(ImageView.ScaleType.FIT_XY);
 					} else {
 						holder.icons[i + shiftIconIndex].setLayoutParams(new AbsoluteLayout.LayoutParams(
 										image.outWidth + 2*Config.FOLDER_THUMBNAIL_PADDING,
 										album_max_height - image.outY,
 										image.outX + shiftWidth,
-										image.outY + Config.FOLDER_THUMBNAIL_PADDING + shiftHeight));
+										image.outY + shiftHeight));
 					}
 
 					Bitmap bmp = mCacheAndAsyncWork.getBitmapFromRamCache(image.id);
@@ -404,6 +400,7 @@ public class FolderList extends Activity {
 						
 						if (adjustY < album_max_height) {
 							holder.icons[i + shiftIconIndex].setVisibility(View.VISIBLE);
+							holder.icons[i + shiftIconIndex].setScaleType(ImageView.ScaleType.FIT_XY);
 
 							int height = adjustY + image.outHeight + 2* Config.FOLDER_THUMBNAIL_PADDING;
 
@@ -411,14 +408,15 @@ public class FolderList extends Activity {
 								holder.icons[i + shiftIconIndex].setLayoutParams(new AbsoluteLayout.LayoutParams(
 												image.outWidth + 2*Config.FOLDER_THUMBNAIL_PADDING,
 												image.outHeight + 2*Config.FOLDER_THUMBNAIL_PADDING,
-												image.outX + shiftWidth, adjustY + shiftHeight));
+												image.outX + shiftWidth,
+												adjustY + shiftHeight));
 								holder.icons[i + shiftIconIndex].setScaleType(ImageView.ScaleType.FIT_XY);
 							} else {
 								holder.icons[i + shiftIconIndex].setLayoutParams(new AbsoluteLayout.LayoutParams(
 												image.outWidth + 2*Config.FOLDER_THUMBNAIL_PADDING,
 												album_max_height - adjustY,
 												image.outX + shiftWidth,
-												adjustY + Config.FOLDER_THUMBNAIL_PADDING + shiftHeight));
+												adjustY + shiftHeight));
 							}
 
 							Bitmap bmp = mCacheAndAsyncWork.getBitmapFromRamCache(image.id);
@@ -439,11 +437,12 @@ public class FolderList extends Activity {
 				}
 				else {
 					holder.icons[shiftIconIndex].setVisibility(View.VISIBLE);
+					holder.icons[shiftIconIndex].setScaleType(ImageView.ScaleType.FIT_XY);
 					holder.icons[shiftIconIndex].setLayoutParams(new AbsoluteLayout.LayoutParams(
 							firstLine.getWidth(),
 							album_max_height - firstLine.getHeight(),
 							shiftWidth,
-							firstLine.getHeight() + Config.FOLDER_THUMBNAIL_PADDING + shiftHeight));
+							firstLine.getHeight() + shiftHeight));
 					holder.icons[shiftIconIndex].setImageResource(R.drawable.placehold);
 					
 					holder.icons[shiftIconIndex].setId(mAlbumIndexArray[albumPosition]);

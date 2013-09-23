@@ -1,6 +1,7 @@
 package com.example.t_gallery;
 
 import android.content.Context;
+import android.content.res.Configuration;
 import android.graphics.Point;
 import android.net.Uri;
 import android.provider.MediaStore.Images.Media;
@@ -14,8 +15,6 @@ class Config {
 	static public final int THUMBNAILS_PER_LINE = 6;
 	static public final int THUMBNAIL_WIDTH = 132;
 	static public final int THUMBNAIL_HEIGHT = 132;
-	static public final int THUMBNAIL_BOUND_WIDTH = 264;
-	static public final int THUMBNAIL_BOUND_HEIGHT = 264;
 	static public final int IMAGE_LIST_THUMBNAIL_PADDING = 10;
 	static public final int FOLDER_THUMBNAIL_PADDING = 5;
 
@@ -53,14 +52,30 @@ class Config {
 	static public final String CLICK_INDEX = "click_index";
 	static public final String THUMBNAIL_ID = "thumbnail_id";
 	
-	//Shared Preference File
+	/*Shared Preference File*/
 	static public final String PREFS_NAME = "gallery_prefs_file";
 	static public final String SCROLL_IMAGE_SUM = "scroll_image_sum";
 	static public final String IMAGE_LIST_ANIM_ACTIVE = "image_list_anim_active";
 	
+	/*Folder Type*/
+	static public final int CAMERA_FOLDER = 0x00000001;
+	static public final int COMMON_FOLDER = 0x00000002;
+	
 	/*Screen Info*/
-	static public int SCREEN_WIDTH = 1080;
-	static public int SCREEN_HEIGHT = 1920;
 	static public int STATUS_BAR_HEIGHT = 75;
 	static public int TITLE_BAR_HEIGHT = 144;
+	public int screenWidth = 0;
+	public int screenHeight = 0;
+	public int currentOrientation = Configuration.ORIENTATION_PORTRAIT;
+	
+	Config(Context context) {
+    	Point outPoint = new Point();
+    	WindowManager wm = (WindowManager)context.getSystemService(Context.WINDOW_SERVICE);
+    	wm.getDefaultDisplay().getSize(outPoint);
+    	
+    	screenWidth = outPoint.x;
+    	screenHeight = outPoint.y;
+    	
+    	currentOrientation = context.getResources().getConfiguration().orientation;
+	}
 }

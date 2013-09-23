@@ -3,33 +3,54 @@ package com.example.t_gallery;
 import java.util.ArrayList;
 import java.util.Random;
 
+import android.content.res.Configuration;
+
 class ImageCell {
-	ImageCell(long aId, int aWidth, int aHeight, int aPosition, boolean cropCameraImage){
+	ImageCell(long aId, int aWidth, int aHeight, int aPosition, int folderType){
 		id = aId;
 		position = aPosition;
-		
 		float ratio = (float) aHeight / (float) aWidth;
-		if (ratio > Config.MAX_WIDTH_HEIGHT_RATIO) {
-			inHeight = (int) (aWidth * Config.MAX_WIDTH_HEIGHT_RATIO);
-			inWidth = aWidth;
-			crop = 1;
-		}
-		else if (ratio < 1/Config.MAX_WIDTH_HEIGHT_RATIO) {
-			inWidth = (int) (aHeight * Config.MAX_WIDTH_HEIGHT_RATIO);
-			inHeight = aHeight;
-			crop = 1;
-		}
-		else if(cropCameraImage == true) {
-			inHeight = (int) (aWidth * 1.15f);
-			inWidth = aWidth;
-			crop = 1;
+		
+		if(folderType == Config.CAMERA_FOLDER) {
+			
+			if(aHeight > aWidth) {
+				Random random = new Random();
+				float[] aRatio = { 0, 1.6f, 1.5f, 1.4f, 1.3f};
+				int choice = random.nextInt(aRatio.length);
+
+				if (0 == choice) {
+					inWidth = aWidth;
+					inHeight = aHeight;
+					yRatio = (float) inHeight / (float) inWidth;
+				} else {
+					inHeight = (int) (aWidth * aRatio[choice]);
+					inWidth = aWidth;
+					yRatio = aRatio[choice];
+				}
+			}
+			else {
+				inWidth = aWidth;
+				inHeight = aHeight;
+				yRatio = (float) inHeight / (float) inWidth;
+			}
 		}
 		else {
-		    inWidth = aWidth;
-		    inHeight = aHeight;
+			if (ratio > Config.MAX_WIDTH_HEIGHT_RATIO) {
+				inHeight = (int) (aWidth * Config.MAX_WIDTH_HEIGHT_RATIO);
+				inWidth = aWidth;
+				yRatio = Config.MAX_WIDTH_HEIGHT_RATIO;
+			}
+			else if (ratio < 1/Config.MAX_WIDTH_HEIGHT_RATIO) {
+				inWidth = (int) (aHeight * Config.MAX_WIDTH_HEIGHT_RATIO);
+				inHeight = aHeight;
+				yRatio = 1/Config.MAX_WIDTH_HEIGHT_RATIO;
+			}
+			else {
+			    inWidth = aWidth;
+			    inHeight = aHeight;
+			    yRatio = (float)inHeight / (float)inWidth;
+			}
 		}
-		
-	    yRatio = (float)inHeight / (float)inWidth;
 	}
 	
 	public void multiplyXGravity(float factor){
@@ -48,7 +69,7 @@ class ImageCell {
 	
 	public long id = 0;
 	public int position = 0;
-	public int crop = 0;
+	public int crop = 0; //Todo: maybe can deleted
 	
 	public int inWidth = 0;
 	public int inHeight = 0;
@@ -71,8 +92,8 @@ class ImageLineGroup {
 		imageList = new ArrayList<ImageCell>();
 	}
 
-	public void addImage(long id, int width, int height, int position, boolean cropCameraImage){
-		ImageCell image = new ImageCell(id, width, height, position, cropCameraImage);
+	public void addImage(long id, int width, int height, int position, int folderType){
+		ImageCell image = new ImageCell(id, width, height, position, folderType);
 		imageList.add(image);
 	}
 	
@@ -109,20 +130,19 @@ class ImageSingleLineGroup extends ImageLineGroup{
 	
 	private int totalHeight = 1080;
 	private static final int MAX_WIDTH = 540;
-	private int layoutType = 1;
+	private int orientationType = 1;
 	
-	//type: 1->layoutWidth, 0->layoutHeight
 	ImageSingleLineGroup(int containerWidth, int containerHeight, int pad, int type){
 		totalWidth = containerWidth;
 		thumbnail_pad = pad;
 		
 		totalHeight = containerHeight;
-		layoutType = type;
+		orientationType = type;
 	}
 	
 	private void layout() {
 		
-		if(0 == layoutType){
+		if(orientationType == Configuration.ORIENTATION_LANDSCAPE){
 			verticalLayout();
 		}
 		else {
@@ -222,14 +242,14 @@ class ImageSingleLineGroup extends ImageLineGroup{
 		
 		layout();
 		
-		if (layoutType == 0) { //0: layoutHeight
+		if (orientationType == Configuration.ORIENTATION_LANDSCAPE) {
 			if (height < (totalHeight - 30)) {
 				return true;
 			} else {
 				return false;
 			}
 
-		} else { //1: layoutWidth
+		} else {
 			if (width < (totalWidth - 30)) {
 				return true;
 			} else {
@@ -286,7 +306,7 @@ class ImageProcessBuffer{
 
 abstract class ImageRichLinePattern {
 	/*Return the number of items matching the pattern*/
-	abstract int match(ArrayList<ImageCell> images);
+	abstract int match(ArrayList<ImageCell> images, int folderType);
 	
 	/*Just return how many items the pattern applies*/
 	abstract int imageCount();
@@ -364,6 +384,8 @@ abstract class ImageRichLinePattern {
 }
 
 class ImageRichLinePatternCollection {
+	
+	//pattern[0-16] for portrait mode, pattern[17-28] for landscape mode
 	private static final int PATTERN_NUM = 29;
 	
 	private static final int IMAGE_PANORAMA = 0x00000001;
@@ -371,31 +393,55 @@ class ImageRichLinePatternCollection {
 	private static final int IMAGE_SQUARE = 0x00000004;
 	private static final int IMAGE_PORTRAIT = 0x00000008;
 	private static final int IMAGE_SLIM = 0x00000010;
+	private static final int IMAGE_CAMERA = 0x00000020;
 	
-	public int getImageType(ImageCell image){
-		if (image.yRatio <= 0.4f){
-			return IMAGE_PANORAMA;
-		}
-		else if (image.yRatio <= 0.85f){
-			return IMAGE_LANDSCAPE;
-		}
-		else if (image.yRatio <= 1.15f){
-			return IMAGE_SQUARE;
-		}
-		else if (image.yRatio <= 2.5f){
-			return IMAGE_PORTRAIT;
+	public int getImageType(ImageCell image, int folerType){
+		
+		if(folerType == Config.CAMERA_FOLDER) {
+			if (image.yRatio <= 0.4f) {
+				return IMAGE_PANORAMA;
+			}
+			else if (image.yRatio <= 0.85f) {
+				return IMAGE_LANDSCAPE;
+			}
+			else if (image.yRatio <= 1.15f) {
+				return IMAGE_SQUARE;
+			}
+			else if(image.yRatio <= 1.8f) {
+				return IMAGE_CAMERA;
+			}
+			else if (image.yRatio <= 2.5f) {
+				return IMAGE_PORTRAIT;
+			}
+			else {
+				return IMAGE_SLIM;
+			}
 		}
 		else {
-			return IMAGE_SLIM;
+			if (image.yRatio <= 0.4f) {
+				return IMAGE_PANORAMA;
+			}
+			else if (image.yRatio <= 0.85f) {
+				return IMAGE_LANDSCAPE;
+			}
+			else if (image.yRatio <= 1.15f) {
+				return IMAGE_SQUARE;
+			}
+			else if (image.yRatio <= 2.5f) {
+				return IMAGE_PORTRAIT;
+			}
+			else {
+				return IMAGE_SLIM;
+			}
 		}
 	}
 	
-	public boolean isImageListPortrait(ArrayList<ImageCell> images, int aTypes[], int aNum[], int lev){
+	public boolean isImageListPortrait(ArrayList<ImageCell> images, int aTypes[], int aNum[], int lev, int folerType){
 		//aTypes.length == aNum.length && lev <= images.size()
 		boolean res = true;
 
 		for(int i = 0; i < lev; i++) {
-			int type = getImageType(images.get(i));
+			int type = getImageType(images.get(i), folerType);
 
 			for(int j = 0; j < aTypes.length; j++) {
 				if(aNum[j] > 0 && (aTypes[j] & type) != 0) {
@@ -461,14 +507,14 @@ class ImageRichLinePatternCollection {
 				return 5;
 			}
 
-			public int match(ArrayList<ImageCell> images) {
+			public int match(ArrayList<ImageCell> images, int folerType) {
 				
 				if (images.size() < 5){
 					return -1;
 				}
 				
 				for (int i=0; i<5; i++){
-					int type = getImageType(images.get(i));
+					int type = getImageType(images.get(i), folerType);
 					
 					if (IMAGE_LANDSCAPE == type || IMAGE_PANORAMA == type){
 						return -1;
@@ -529,14 +575,14 @@ class ImageRichLinePatternCollection {
 				return 5;
 			}
 
-			public int match(ArrayList<ImageCell> images) {
+			public int match(ArrayList<ImageCell> images, int folerType) {
 				
 				if (images.size() < 5){
 					return -1;
 				}
 				
 				for (int i=0; i<5; i++){
-					int type = getImageType(images.get(i));
+					int type = getImageType(images.get(i), folerType);
 					
 					if (IMAGE_LANDSCAPE == type || IMAGE_PANORAMA == type){
 						return -1;
@@ -597,14 +643,14 @@ class ImageRichLinePatternCollection {
 				return 5;
 			}
 
-			public int match(ArrayList<ImageCell> images) {
+			public int match(ArrayList<ImageCell> images, int folerType) {
 				
 				if (images.size() < 5){
 					return -1;
 				}
 				
 				for (int i=0; i<5; i++){
-					int type = getImageType(images.get(i));
+					int type = getImageType(images.get(i), folerType);
 					
 					if (IMAGE_LANDSCAPE == type || IMAGE_PANORAMA == type){
 						return -1;
@@ -666,15 +712,15 @@ class ImageRichLinePatternCollection {
 				return 4;
 			}
 
-			public int match(ArrayList<ImageCell> images) {
+			public int match(ArrayList<ImageCell> images, int folerType) {
 				if (images.size() < 4){
 					return -1;
 				}
 
-                int aTypes[] = {IMAGE_LANDSCAPE,  IMAGE_SQUARE | IMAGE_PORTRAIT, IMAGE_PORTRAIT | IMAGE_SLIM};
+                int aTypes[] = {IMAGE_LANDSCAPE,  IMAGE_SQUARE | IMAGE_CAMERA | IMAGE_PORTRAIT, IMAGE_CAMERA | IMAGE_PORTRAIT | IMAGE_SLIM};
                 int aNum[] = {1, 2, 1};
 
-                if (true == isImageListPortrait(images, aTypes, aNum, 4)){
+                if (true == isImageListPortrait(images, aTypes, aNum, 4, folerType)){
 					return 4;
 				}
 				else {
@@ -731,16 +777,16 @@ class ImageRichLinePatternCollection {
 				return 4;
 			}
 
-			public int match(ArrayList<ImageCell> images) {
+			public int match(ArrayList<ImageCell> images, int folerType) {
 				
 				if (images.size() < 4){
 					return -1;
 				}
 
-                int aTypes[] = {IMAGE_LANDSCAPE,  IMAGE_SQUARE | IMAGE_PORTRAIT, IMAGE_PORTRAIT | IMAGE_SLIM};
+                int aTypes[] = {IMAGE_LANDSCAPE,  IMAGE_SQUARE | IMAGE_CAMERA | IMAGE_PORTRAIT, IMAGE_CAMERA | IMAGE_PORTRAIT | IMAGE_SLIM};
                 int aNum[] = {1, 2, 1};
 
-                if (true == isImageListPortrait(images, aTypes, aNum, 4)){
+                if (true == isImageListPortrait(images, aTypes, aNum, 4, folerType)){
 					return 4;
 				}
 				else {
@@ -797,16 +843,16 @@ class ImageRichLinePatternCollection {
 				return 4;
 			}
 
-			public int match(ArrayList<ImageCell> images) {
+			public int match(ArrayList<ImageCell> images, int folerType) {
 				
 				if (images.size() < 4){
 					return -1;
 				}
 
-                int aTypes[] = {IMAGE_LANDSCAPE,  IMAGE_SQUARE | IMAGE_PORTRAIT, IMAGE_PORTRAIT | IMAGE_SLIM};
+                int aTypes[] = {IMAGE_LANDSCAPE,  IMAGE_SQUARE | IMAGE_CAMERA |IMAGE_PORTRAIT, IMAGE_CAMERA | IMAGE_PORTRAIT | IMAGE_SLIM};
                 int aNum[] = {1, 2, 1};
 
-                if (true == isImageListPortrait(images, aTypes, aNum, 4)){
+                if (true == isImageListPortrait(images, aTypes, aNum, 4, folerType)){
 					return 4;
 				}
 				else {
@@ -863,16 +909,16 @@ class ImageRichLinePatternCollection {
 				return 4;
 			}
 
-			public int match(ArrayList<ImageCell> images) {
+			public int match(ArrayList<ImageCell> images, int folerType) {
 				
 				if (images.size() < 4){
 					return -1;
 				}
 
-                int aTypes[] = {IMAGE_LANDSCAPE,  IMAGE_SQUARE | IMAGE_PORTRAIT, IMAGE_PORTRAIT | IMAGE_SLIM};
+                int aTypes[] = {IMAGE_LANDSCAPE,  IMAGE_SQUARE | IMAGE_CAMERA | IMAGE_PORTRAIT, IMAGE_CAMERA | IMAGE_PORTRAIT | IMAGE_SLIM};
                 int aNum[] = {1, 2, 1};
 
-                if (true == isImageListPortrait(images, aTypes, aNum, 4)){
+                if (true == isImageListPortrait(images, aTypes, aNum, 4, folerType)){
 					return 4;
 				}
 				else {
@@ -929,16 +975,16 @@ class ImageRichLinePatternCollection {
 				return 3;
 			}
 
-			public int match(ArrayList<ImageCell> images) {
+			public int match(ArrayList<ImageCell> images, int folerType) {
 				
 				if (images.size() < 3){
 					return -1;
 				}
 				
-                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE, IMAGE_PORTRAIT | IMAGE_SLIM};
+                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE | IMAGE_CAMERA, IMAGE_CAMERA | IMAGE_PORTRAIT | IMAGE_SLIM};
                 int aNum[] = {2, 1};
 
-                if (true == isImageListPortrait(images, aTypes, aNum, 3)){
+                if (true == isImageListPortrait(images, aTypes, aNum, 3, folerType)){
 					return 3;
 				}
 				else {
@@ -991,16 +1037,16 @@ class ImageRichLinePatternCollection {
 				return 3;
 			}
 
-			public int match(ArrayList<ImageCell> images) {
+			public int match(ArrayList<ImageCell> images, int folerType) {
 				
 				if (images.size() < 3){
 					return -1;
 				}
 
-                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE, IMAGE_PORTRAIT | IMAGE_SLIM};
+                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE | IMAGE_CAMERA, IMAGE_CAMERA | IMAGE_PORTRAIT | IMAGE_SLIM};
                 int aNum[] = {2, 1};
 
-                if (true == isImageListPortrait(images, aTypes, aNum, 3)){
+                if (true == isImageListPortrait(images, aTypes, aNum, 3, folerType)){
 					return 3;
 				}
 				else {
@@ -1053,14 +1099,14 @@ class ImageRichLinePatternCollection {
 				return 5;
 			}
 
-			public int match(ArrayList<ImageCell> images) {
+			public int match(ArrayList<ImageCell> images, int folerType) {
 				
 				if (images.size() < 5){
 					return -1;
 				}
 				
 				for (int i=0; i<5; i++){
-					int type = getImageType(images.get(i));
+					int type = getImageType(images.get(i), folerType);
 					if(!(IMAGE_LANDSCAPE == type || IMAGE_SQUARE == type)){
 						return -1;
 					}
@@ -1121,14 +1167,14 @@ class ImageRichLinePatternCollection {
 				return 5;
 			}
 
-			public int match(ArrayList<ImageCell> images) {
+			public int match(ArrayList<ImageCell> images, int folerType) {
 				
 				if (images.size() < 5){
 					return -1;
 				}
 				
 				for (int i=0; i<5; i++){
-					int type = getImageType(images.get(i));
+					int type = getImageType(images.get(i), folerType);
 					if(!(IMAGE_LANDSCAPE == type || IMAGE_SQUARE == type)){
 						return -1;
 					}
@@ -1189,16 +1235,16 @@ class ImageRichLinePatternCollection {
 				return 4;
 			}
 
-			public int match(ArrayList<ImageCell> images) {
+			public int match(ArrayList<ImageCell> images, int folerType) {
 				
 				if (images.size() < 4){
 					return -1;
 				}
 
-                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE, IMAGE_PORTRAIT | IMAGE_SLIM};
+                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE | IMAGE_CAMERA, IMAGE_CAMERA | IMAGE_PORTRAIT | IMAGE_SLIM};
                 int aNum[] = {2, 2};
 
-                if (true == isImageListPortrait(images, aTypes, aNum, 4)){
+                if (true == isImageListPortrait(images, aTypes, aNum, 4, folerType)){
 					return 4;
 				}
 				else {
@@ -1255,16 +1301,16 @@ class ImageRichLinePatternCollection {
 				return 4;
 			}
 
-			public int match(ArrayList<ImageCell> images) {
+			public int match(ArrayList<ImageCell> images, int folerType) {
 				
 				if (images.size() < 4){
 					return -1;
 				}
 				
-                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE, IMAGE_PORTRAIT | IMAGE_SLIM};
+                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE | IMAGE_CAMERA, IMAGE_CAMERA | IMAGE_PORTRAIT | IMAGE_SLIM};
                 int aNum[] = {2, 2};
 
-                if (true == isImageListPortrait(images, aTypes, aNum, 4)){
+                if (true == isImageListPortrait(images, aTypes, aNum, 4, folerType)){
 					return 4;
 				}
 				else {
@@ -1321,16 +1367,16 @@ class ImageRichLinePatternCollection {
 				return 4;
 			}
 
-			public int match(ArrayList<ImageCell> images) {
+			public int match(ArrayList<ImageCell> images, int folerType) {
 				
 				if (images.size() < 4){
 					return -1;
 				}
 				
-                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE, IMAGE_PORTRAIT | IMAGE_SLIM};
+                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE | IMAGE_CAMERA, IMAGE_CAMERA | IMAGE_PORTRAIT | IMAGE_SLIM};
                 int aNum[] = {2, 2};
 
-                if (true == isImageListPortrait(images, aTypes, aNum, 4)){
+                if (true == isImageListPortrait(images, aTypes, aNum, 4, folerType)){
 					return 4;
 				}
 				else {
@@ -1387,14 +1433,14 @@ class ImageRichLinePatternCollection {
 				return 4;
 			}
 
-			public int match(ArrayList<ImageCell> images) {
+			public int match(ArrayList<ImageCell> images, int folerType) {
 				
 				if (images.size() < 4){
 					return -1;
 				}
 				
 				for (int i=0; i<4; i++){
-					if (IMAGE_PANORAMA == getImageType(images.get(i))){
+					if (IMAGE_PANORAMA == getImageType(images.get(i), folerType)){
 						return -1;
 					}
 				}
@@ -1461,16 +1507,16 @@ class ImageRichLinePatternCollection {
                 return 4;
             }
 
-            public int match(ArrayList<ImageCell> images) {
+            public int match(ArrayList<ImageCell> images, int folerType) {
 
                 if (images.size() < 4){
                     return -1;
                 }
                 
-                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE, IMAGE_PORTRAIT | IMAGE_SLIM};
+                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE | IMAGE_CAMERA, IMAGE_CAMERA | IMAGE_PORTRAIT | IMAGE_SLIM};
                 int aNum[] = {3, 1};
 
-                if (true == isImageListPortrait(images, aTypes, aNum, 4)){
+                if (true == isImageListPortrait(images, aTypes, aNum, 4, folerType)){
 					return 4;
 				}
 				else {
@@ -1526,16 +1572,16 @@ class ImageRichLinePatternCollection {
                 return 4;
             }
 
-            public int match(ArrayList<ImageCell> images) {
+            public int match(ArrayList<ImageCell> images, int folerType) {
 
                 if (images.size() < 4){
                     return -1;
                 }
 
-                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE, IMAGE_PORTRAIT | IMAGE_SLIM};
+                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE | IMAGE_CAMERA, IMAGE_CAMERA | IMAGE_PORTRAIT | IMAGE_SLIM};
                 int aNum[] = {3, 1};
 
-                if (true == isImageListPortrait(images, aTypes, aNum, 4)){
+                if (true == isImageListPortrait(images, aTypes, aNum, 4, folerType)){
 					return 4;
 				}
 				else {
@@ -1586,21 +1632,22 @@ class ImageRichLinePatternCollection {
             };    
         };
         
+        //Following patterns for landscape mode
 		patterns[17] = new ImageRichLinePattern(){
 			public int imageCount(){
 				return 3;
 			}
 
-			public int match(ArrayList<ImageCell> images) {
+			public int match(ArrayList<ImageCell> images, int folerType) {
 				
 				if (images.size() < 3){
 					return -1;
 				}
 
-                int aTypes[] = {IMAGE_LANDSCAPE,  IMAGE_SQUARE | IMAGE_PORTRAIT};
+                int aTypes[] = {IMAGE_LANDSCAPE,  IMAGE_SQUARE | IMAGE_CAMERA |IMAGE_PORTRAIT};
                 int aNum[] = {1, 2};
 
-                if (true == isImageListPortrait(images, aTypes, aNum, 3)){
+                if (true == isImageListPortrait(images, aTypes, aNum, 3, folerType)){
 					return 3;
 				}
 				else {
@@ -1653,16 +1700,16 @@ class ImageRichLinePatternCollection {
 				return 3;
 			}
 
-			public int match(ArrayList<ImageCell> images) {
+			public int match(ArrayList<ImageCell> images, int folerType) {
 				
 				if (images.size() < 3){
 					return -1;
 				}
 
-                int aTypes[] = {IMAGE_LANDSCAPE,  IMAGE_SQUARE | IMAGE_PORTRAIT};
+                int aTypes[] = {IMAGE_LANDSCAPE,  IMAGE_SQUARE | IMAGE_CAMERA | IMAGE_PORTRAIT};
                 int aNum[] = {1, 2};
 
-                if (true == isImageListPortrait(images, aTypes, aNum, 3)){
+                if (true == isImageListPortrait(images, aTypes, aNum, 3, folerType)){
 					return 3;
 				}
 				else {
@@ -1715,16 +1762,16 @@ class ImageRichLinePatternCollection {
 				return 6;
 			}
 
-			public int match(ArrayList<ImageCell> images) {
+			public int match(ArrayList<ImageCell> images, int folerType) {
 				
 				if (images.size() < 6){
 					return -1;
 				}
 
-                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE, IMAGE_PORTRAIT | IMAGE_SLIM};
+                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE, IMAGE_CAMERA | IMAGE_PORTRAIT | IMAGE_SLIM};
                 int aNum[] = {4, 2};
 
-                if (true == isImageListPortrait(images, aTypes, aNum, 6)){
+                if (true == isImageListPortrait(images, aTypes, aNum, 6, folerType)){
 					return 6;
 				}
 				else {
@@ -1789,16 +1836,16 @@ class ImageRichLinePatternCollection {
 				return 6;
 			}
 
-			public int match(ArrayList<ImageCell> images) {
+			public int match(ArrayList<ImageCell> images, int folerType) {
 				
 				if (images.size() < 6){
 					return -1;
 				}
 
-                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE, IMAGE_PORTRAIT | IMAGE_SLIM};
+                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE, IMAGE_CAMERA | IMAGE_PORTRAIT | IMAGE_SLIM};
                 int aNum[] = {4, 2};
 
-                if (true == isImageListPortrait(images, aTypes, aNum, 6)){
+                if (true == isImageListPortrait(images, aTypes, aNum, 6, folerType)){
 					return 6;
 				}
 				else {
@@ -1863,16 +1910,16 @@ class ImageRichLinePatternCollection {
 				return 6;
 			}
 
-			public int match(ArrayList<ImageCell> images) {
+			public int match(ArrayList<ImageCell> images, int folerType) {
 				
 				if (images.size() < 6){
 					return -1;
 				}
 
-                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE, IMAGE_PORTRAIT | IMAGE_SLIM};
+                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE, IMAGE_CAMERA | IMAGE_PORTRAIT | IMAGE_SLIM};
                 int aNum[] = {4, 2};
 
-                if (true == isImageListPortrait(images, aTypes, aNum, 6)){
+                if (true == isImageListPortrait(images, aTypes, aNum, 6, folerType)){
 					return 6;
 				}
 				else {
@@ -1937,16 +1984,16 @@ class ImageRichLinePatternCollection {
 				return 6;
 			}
 
-			public int match(ArrayList<ImageCell> images) {
+			public int match(ArrayList<ImageCell> images, int folerType) {
 				
 				if (images.size() < 6){
 					return -1;
 				}
 
-                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE, IMAGE_PORTRAIT | IMAGE_SLIM};
+                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE, IMAGE_CAMERA | IMAGE_PORTRAIT | IMAGE_SLIM};
                 int aNum[] = {4, 2};
 
-                if (true == isImageListPortrait(images, aTypes, aNum, 6)){
+                if (true == isImageListPortrait(images, aTypes, aNum, 6, folerType)){
 					return 6;
 				}
 				else {
@@ -2011,16 +2058,16 @@ class ImageRichLinePatternCollection {
 				return 6;
 			}
 
-			public int match(ArrayList<ImageCell> images) {
+			public int match(ArrayList<ImageCell> images, int folerType) {
 				
 				if (images.size() < 6){
 					return -1;
 				}
 
-                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE, IMAGE_PORTRAIT | IMAGE_SLIM};
+                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE, IMAGE_CAMERA | IMAGE_PORTRAIT | IMAGE_SLIM};
                 int aNum[] = {4, 2};
 
-                if (true == isImageListPortrait(images, aTypes, aNum, 6)){
+                if (true == isImageListPortrait(images, aTypes, aNum, 6, folerType)){
 					return 6;
 				}
 				else {
@@ -2085,16 +2132,16 @@ class ImageRichLinePatternCollection {
 				return 6;
 			}
 
-			public int match(ArrayList<ImageCell> images) {
+			public int match(ArrayList<ImageCell> images, int folerType) {
 				
 				if (images.size() < 6){
 					return -1;
 				}
 
-                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE, IMAGE_PORTRAIT | IMAGE_SLIM};
+                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE, IMAGE_CAMERA | IMAGE_PORTRAIT | IMAGE_SLIM};
                 int aNum[] = {4, 2};
 
-                if (true == isImageListPortrait(images, aTypes, aNum, 6)){
+                if (true == isImageListPortrait(images, aTypes, aNum, 6, folerType)){
 					return 6;
 				}
 				else {
@@ -2159,16 +2206,16 @@ class ImageRichLinePatternCollection {
 				return 5;
 			}
 
-			public int match(ArrayList<ImageCell> images) {
+			public int match(ArrayList<ImageCell> images, int folerType) {
 				
 				if (images.size() < 5){
 					return -1;
 				}
 
-                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE, IMAGE_PORTRAIT | IMAGE_SLIM};
+                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE | IMAGE_CAMERA, IMAGE_CAMERA | IMAGE_PORTRAIT | IMAGE_SLIM};
                 int aNum[] = {2, 3};
                 
-                if (true == isImageListPortrait(images, aTypes, aNum, 5)){
+                if (true == isImageListPortrait(images, aTypes, aNum, 5, folerType)){
 					return 5;
 				}
 				else {
@@ -2229,16 +2276,16 @@ class ImageRichLinePatternCollection {
 				return 5;
 			}
 
-			public int match(ArrayList<ImageCell> images) {
+			public int match(ArrayList<ImageCell> images, int folerType) {
 				
 				if (images.size() < 5){
 					return -1;
 				}
 
-                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE, IMAGE_PORTRAIT | IMAGE_SLIM};
+                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE | IMAGE_CAMERA, IMAGE_CAMERA | IMAGE_PORTRAIT | IMAGE_SLIM};
                 int aNum[] = {2, 3};
 
-                if (true == isImageListPortrait(images, aTypes, aNum, 5)){
+                if (true == isImageListPortrait(images, aTypes, aNum, 5, folerType)){
 					return 5;
 				}
 				else {
@@ -2288,7 +2335,7 @@ class ImageRichLinePatternCollection {
 				adjustImages.get(4).outY = adjustImages.get(3).outY;
 				
 				restoreImageList(images, adjustImages, baseIndex);
-
+				
 				out[0] = adjustImages.get(3).outWidth + adjustImages.get(4).outWidth + 4*pad;
 				out[1] = totalHeight;
 			};
@@ -2299,16 +2346,16 @@ class ImageRichLinePatternCollection {
 				return 4;
 			}
 
-			public int match(ArrayList<ImageCell> images) {
+			public int match(ArrayList<ImageCell> images, int folerType) {
 				
 				if (images.size() < 4){
 					return -1;
 				}
 
-                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE, IMAGE_PORTRAIT | IMAGE_SLIM};
+                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE, IMAGE_CAMERA | IMAGE_PORTRAIT | IMAGE_SLIM};
                 int aNum[] = {1, 3};
 
-                if (true == isImageListPortrait(images, aTypes, aNum, 4)){
+                if (true == isImageListPortrait(images, aTypes, aNum, 4, folerType)){
 					return 4;
 				}
 				else {
@@ -2365,16 +2412,16 @@ class ImageRichLinePatternCollection {
 				return 4;
 			}
 
-			public int match(ArrayList<ImageCell> images) {
+			public int match(ArrayList<ImageCell> images, int folerType) {
 				
 				if (images.size() < 4){
 					return -1;
 				}
 
-                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE, IMAGE_PORTRAIT | IMAGE_SLIM};
+                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE, IMAGE_CAMERA | IMAGE_PORTRAIT | IMAGE_SLIM};
                 int aNum[] = {1, 3};
 
-                if (true == isImageListPortrait(images, aTypes, aNum, 4)){
+                if (true == isImageListPortrait(images, aTypes, aNum, 4, folerType)){
 					return 4;
 				}
 				else {
@@ -2427,14 +2474,14 @@ class ImageRichLinePatternCollection {
 		};
 	}
 	
-	public int checkPattern(ArrayList<ImageCell> images, int scope[]){
+	public int checkPattern(ArrayList<ImageCell> images, int scope[], int type){
 		int minIndex = 0;
 		ArrayList<Integer> tempPatterns = new ArrayList<Integer>();
 		
 		if (scope != null && scope.length >= 2 && scope[0] >= 0
 				&& scope[1] >= scope[0]) {
 			for (int i = scope[0]; i <= scope[1]; i++) {
-				if (patterns[i].match(images) != -1) {
+				if (patterns[i].match(images, type) != -1) {
 					tempPatterns.add(i);
 					if (aPatternMatchSum[i] < aPatternMatchSum[tempPatterns.get(minIndex)]) {
 						minIndex = tempPatterns.size() - 1;
@@ -2488,8 +2535,7 @@ public class GalleryLayout {
 	private static final int MAX_BUFFER_LENGTH = 6;
 	private int lastPattern = -2; /*-1 indicates using the single line, -2 indicates starting*/
 	
-	//type: 1->layoutWidth, 0->layoutHeight
-	GalleryLayout(int containerWidth, int containerHeight, int pad, int type){
+	GalleryLayout(int containerWidth, int containerHeight, int pad, int orientationType, int folderType){
 		totalWidth = containerWidth;
 		lines = new ArrayList<ImageLineGroup>();
 		
@@ -2499,19 +2545,20 @@ public class GalleryLayout {
 		
 		thumbnailPad = pad;
 		totalHeight = containerHeight;
-		layoutType = type;
+		this.orientationType = orientationType;
+		this.folderType = folderType;
 		
-		createRichPatternScope(type);
+		createRichPatternScope(orientationType);
 	}
 	
-	private void createRichPatternScope(int type) {
+	private void createRichPatternScope(int orientationType) {
 		scope = new int[2];
 		
-		if(1 == type) { // 1: layoutWidth
+		if(Configuration.ORIENTATION_PORTRAIT == orientationType) {
 			scope[0] = 0;
 			scope[1] = 16;
 		}
-		else {// 0: layoutHeight
+		else {
 			scope[0] = 17;
 			scope[1] = 28;
 		}
@@ -2523,7 +2570,7 @@ public class GalleryLayout {
 	
 	private void processImageBuffer(){
 		/*Try to find some pattern*/
-		int availPattern = patterns.checkPattern(itemBuffer.buffer, scope);
+		int availPattern = patterns.checkPattern(itemBuffer.buffer, scope, folderType);
 		
 		if (availPattern > 0){
 
@@ -2554,12 +2601,9 @@ public class GalleryLayout {
 				
 				ArrayList<ImageCell> images = itemBuffer.shed(consumeCount);
 				
-				int in[] = new int[2];
+				int in[] = {totalWidth, totalHeight};
 				int out[] = new int[2];
-				
-				in[0] = totalWidth;
-				in[1] = totalHeight;
-				
+
 				patterns.applyPattern(images, choice, in, thumbnailPad, out);
 				line.addImages(images);
 				line.height = out[1];
@@ -2570,7 +2614,7 @@ public class GalleryLayout {
 			}
 			else {
 				ImageSingleLineGroup line = new ImageSingleLineGroup(
-						totalWidth, totalHeight, thumbnailPad, layoutType);
+						totalWidth, totalHeight, thumbnailPad, orientationType);
 				while (true == line.needMoreImage() && false == itemBuffer.isEmpty()){
 					line.addImage(itemBuffer.remove(0));
 				}
@@ -2581,7 +2625,7 @@ public class GalleryLayout {
 		else {
 			/*No pattern found */
 			ImageSingleLineGroup line = new ImageSingleLineGroup(totalWidth,
-					totalHeight, thumbnailPad, layoutType);
+					totalHeight, thumbnailPad, orientationType);
 			while (true == line.needMoreImage() && false == itemBuffer.isEmpty()){
 				line.addImage(itemBuffer.remove(0));
 			}
@@ -2591,10 +2635,7 @@ public class GalleryLayout {
 	}
 	
 	public void addImage(long id, int width, int height, int position){
-		//boolean cropCameraImage = false;
-		//cropCameraImage = isContinuousCameraRatio(width, height);
-		
-		itemBuffer.add(new ImageCell(id, width, height, position, false));
+		itemBuffer.add(new ImageCell(id, width, height, position, folderType));
 		
 		if (itemBuffer.isFull()){
 			processImageBuffer();
@@ -2611,30 +2652,15 @@ public class GalleryLayout {
 		return lines.size();
 	}
 	
-	
-	/*
-	private boolean isContinuousCameraRatio(int width, int height) {
-		boolean ret = false;
-		float ratio = (float)height/(float)width;
-		if(ratio == 16.0f/9.0f) {
-			continueNum--;
-		}
-		if(continueNum == 0) {
-			ret = true;
-			continueNum = 3;
-		}
-		return ret;
-	}
-	*/
-	
 	public ArrayList<ImageLineGroup> lines = null;
 	private  ImageProcessBuffer itemBuffer = null;
 	private ImageRichLinePatternCollection patterns = null;
 	private Random random = null;
+	
 	private int totalWidth = 0;
 	private int totalHeight = 0;
-	private int layoutType = 1; //1->layoutWidth, 0->layoutHeight
-	//private int continueNum = 3;
+	private int orientationType = Configuration.ORIENTATION_PORTRAIT;
 	private int thumbnailPad = 0;
 	private int scope[];
+	private int folderType = Config.COMMON_FOLDER;
 }

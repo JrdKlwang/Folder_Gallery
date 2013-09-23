@@ -1,13 +1,16 @@
 package com.example.t_gallery;
 
+import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Point;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.view.animation.Animation;
 import android.view.animation.AnimationSet;
 import android.view.animation.ScaleAnimation;
@@ -75,14 +78,14 @@ public class ImageDetailFragment extends Fragment {
 
 		// Image layout
 		int outLayout[] = new int[2]; // Width, Height
-		imageLayout(outLayout, bitmapFactoryOptions.outWidth, bitmapFactoryOptions.outHeight);
+		imageLayout(getActivity(), outLayout, bitmapFactoryOptions.outWidth, bitmapFactoryOptions.outHeight);
 
 		mImageView.setLayoutParams(new FrameLayout.LayoutParams(outLayout[0], outLayout[1], Gravity.CENTER));
 		mImageView.setScaleType(ImageView.ScaleType.FIT_XY);
 
 		// Image anim
 		if (true == bAnim) {
-			imageAnim(outLayout);
+			imageAnim(getActivity(), outLayout);
 		}
 
 		// Image resource
@@ -123,11 +126,15 @@ public class ImageDetailFragment extends Fragment {
 		}
 	}
 
-	private void imageAnim(int outLayout[]) {
+	private void imageAnim(Context context, int outLayout[]) {
+		
+		Point outPoint = new Point();
+		WindowManager wm = (WindowManager)context.getSystemService(Context.WINDOW_SERVICE);  
+		wm.getDefaultDisplay().getSize(outPoint); 
 		
 		// Translate anim
-		int imageX = (Config.SCREEN_WIDTH - mClickItemInfo[2]) / 2;
-		int imageY = (Config.SCREEN_HEIGHT - Config.STATUS_BAR_HEIGHT - mClickItemInfo[3]) / 2;
+		int imageX = (outPoint.x - mClickItemInfo[2]) / 2;
+		int imageY = (outPoint.y - Config.STATUS_BAR_HEIGHT - mClickItemInfo[3]) / 2;
 
 		float fromXDelta = (float) mClickItemInfo[0] - (float) imageX;
 		float fromYDelta = (float) mClickItemInfo[1] - (float) imageY;
@@ -152,11 +159,16 @@ public class ImageDetailFragment extends Fragment {
 		mImageView.startAnimation(set);
 	}
 	
-    public static void imageLayout(int outLayout[], int iWidth, int iHeight) {
+    public static void imageLayout(Context context, int outLayout[], int iWidth, int iHeight) {
     	
     	float layoutWidth = 0.0f, layoutHeight = 0.0f;
-    	int contentWidth = Config.SCREEN_WIDTH;
-    	int contentHeight = Config.SCREEN_HEIGHT-Config.STATUS_BAR_HEIGHT;
+    	
+		Point outPoint = new Point();
+		WindowManager wm = (WindowManager)context.getSystemService(Context.WINDOW_SERVICE);  
+		wm.getDefaultDisplay().getSize(outPoint); 
+    	
+    	int contentWidth = outPoint.x;
+    	int contentHeight = outPoint.y-Config.STATUS_BAR_HEIGHT;
     	
 		float yRatio = (float)iHeight / (float)iWidth;
 		

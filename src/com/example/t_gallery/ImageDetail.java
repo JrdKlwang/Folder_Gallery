@@ -43,7 +43,6 @@ public class ImageDetail extends FragmentActivity {
     
     private ImagePagerAdapter mAdapter;
     private ViewPager mPager;
-    private CacheAndAsyncWork mCacheAndAsyncWork;
     
     private static HashMap<Integer , Bitmap> mFlipmap;
     public static final int OFFSET = 3;
@@ -67,7 +66,6 @@ public class ImageDetail extends FragmentActivity {
         mPager.setAdapter(mAdapter);
         mPager.setCurrentItem(mClickIndex);
         
-        mCacheAndAsyncWork = new CacheAndAsyncWork();
         mFlipmap = new HashMap<Integer , Bitmap>();
     }  
 
@@ -127,7 +125,7 @@ public class ImageDetail extends FragmentActivity {
 
 							// Image layout
 							int outLayout[] = new int[2]; // Width, Height
-							ImageDetailFragment.imageLayout(outLayout,
+							ImageDetailFragment.imageLayout(context, outLayout,
 									bitmapFactoryOptions.outWidth, bitmapFactoryOptions.outHeight);
 
 							bitmapFactoryOptions.inJustDecodeBounds = false;
