@@ -11,6 +11,7 @@ import android.graphics.Bitmap;
 import android.os.Bundle;
 import android.provider.MediaStore.Images.Media;
 import android.provider.MediaStore.Images.Thumbnails;
+import android.util.Log;
 import android.view.Menu;
 import android.view.View;
 import android.view.ViewGroup;
@@ -80,11 +81,11 @@ public class ImageList extends Activity {
 				new String[]{galleryList.getString(galleryList.getColumnIndex(Media.BUCKET_ID))}, 
 				null);
 		
-		listCursor.moveToFirst();
+		listCursor.moveToLast();
 		
 		int j = 0;
 		
-		while (false == listCursor.isAfterLast()){
+		while (false == listCursor.isBeforeFirst()){
 			long id = listCursor.getLong(listCursor.getColumnIndex(Media._ID));
 			int width = listCursor.getInt(listCursor.getColumnIndex(Media.WIDTH));
 			int height = listCursor.getInt(listCursor.getColumnIndex(Media.HEIGHT));
@@ -97,7 +98,7 @@ public class ImageList extends Activity {
 				mImageList.add(path);
 				mImageIds.add(id);
 			}
-			listCursor.moveToNext();
+			listCursor.moveToPrevious();
 		}
 		mGalleryLayout.addImageFinish();
 	}
@@ -127,8 +128,8 @@ public class ImageList extends Activity {
 		}
 		
 		int album_index = getIntent().getIntExtra (Config.ALBUM_INDEX, 0);
-		
 		fetchImageList(album_index);
+		
 		mCacheAndAsyncWork = new CacheAndAsyncWork();
 		int selectedPosition = restorePrevState(); //Must after fetchImageList
 		
@@ -205,7 +206,7 @@ public class ImageList extends Activity {
 				int shiftX = 0;
 				
 				for(int j = 0; j < ret; j++) {
-					shiftX += mGalleryLayout.lines.get(i).getWidth();
+					shiftX += mGalleryLayout.lines.get(j).getWidth();
 				}
 				
 				mHorizontalListView.scrollTo(shiftX);
@@ -336,16 +337,7 @@ public class ImageList extends Activity {
 	public void entryImageDetail(View v) {
 		 
 		//Store display state
-		int aDisplayState[] = mImageAnimObj.getDisplayStatus();
-		
-		if (mConfig.currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
-			aDisplayState[0] = mHorizontalListView.getFirstVisiblePosition();
-			aDisplayState[1] = mHorizontalListView.getLastVisiblePosition();
-		}
-		else {
-			aDisplayState[0] = mVerticalListView.getFirstVisiblePosition();
-			aDisplayState[1] = mVerticalListView.getLastVisiblePosition();
-		}
+		mImageAnimObj.storeDisplayState();
 		
 		int clickItemInfo[] = new int[4];
 		v.getLocationOnScreen (clickItemInfo);
@@ -608,12 +600,35 @@ public class ImageList extends Activity {
 			}
 		}
 		
-		public int[] getImageLocation() {
-			return mImageLocation;
-		}
-		
-		public int[] getDisplayStatus() {
-			return mDisplayState;
+		public void storeDisplayState() {
+			
+			if (mConfig.currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
+				
+				int beginX = mHorizontalListView.getCurrentX();
+				int endX = beginX + mConfig.screenWidth;
+				int i = 0;
+				for(i = 0; i < mGalleryLayout.getLineNum(); i++) {
+					beginX -= mGalleryLayout.lines.get(i).getWidth();
+					if(beginX < 0) {
+						break;
+					}
+				}
+				
+				mDisplayState[0] = i;
+				
+				for(i = 0; i < mGalleryLayout.getLineNum(); i++) {
+					endX -= mGalleryLayout.lines.get(i).getWidth();
+					if(endX < 0) {
+						break;
+					}
+				}
+				
+				mDisplayState[1] = i;
+			}
+			else {
+				mDisplayState[0] = mVerticalListView.getFirstVisiblePosition();
+				mDisplayState[1] = mVerticalListView.getLastVisiblePosition();
+			}
 		}
 		
 		public void calculateChildPosition() {
@@ -631,8 +646,7 @@ public class ImageList extends Activity {
 			}
 			
 			if (-1 != mImageLocation[0]) {
-				mImageLocation[1] = mItemIndex
-						- (sum - mGalleryLayout.lines.get(mImageLocation[0]).imageList.size());
+				mImageLocation[1] = mItemIndex - (sum - mGalleryLayout.lines.get(mImageLocation[0]).imageList.size());
 			}
 		}
 		
@@ -652,10 +666,8 @@ public class ImageList extends Activity {
 			return state;
 		}
 		
-		public void virtualImageAnim() {
+		public void virtualImageAnim(final ViewTreeObserver observer, final int changeState) {
 
-			final ViewTreeObserver observer = mVerticalListView.getViewTreeObserver();
-			
 			observer.addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {
 				
 				@Override
@@ -676,26 +688,49 @@ public class ImageList extends Activity {
 		    		int outLayout[] = new int[2]; //Width, Height
 		    		
 		    		ImageDetailFragment.imageLayout(context, outLayout, image.inWidth, image.inHeight);
+		    			
+		    		float startX = (float)(mConfig.screenWidth - image.outWidth)/2;
+		    		float startY = (float)(mConfig.screenHeight - image.outHeight)/2;
+		    		float endX = 0;
+		    		float endY = 0;
+		        	
+					if (mConfig.currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
+						
+						int left = 0;
+						if(TOP_DISPLAY == changeState) {
+							left = 0;
+						}
+						else if(BOTTOM_DISPLAY == changeState) {
+							left = mConfig.screenWidth - mGalleryLayout.lines.get(mImageLocation[0]).getWidth();
+						}
+						else {
+							int diff = mImageLocation[0] - mDisplayState[0];
+							left = mHorizontalListView.getChildAt(diff).getLeft();
+						}
+						
+						Log.v("t-galleryanim", "mImageLocation[0]: " + mImageLocation[0] + "  ,left: " + left);
+
+			    		endX = left + image.outX;
+			    		endY = image.outY;
+					} else {
+						int diff = mImageLocation[0] - mVerticalListView.getFirstVisiblePosition();
+						int top = mVerticalListView.getChildAt(diff).getTop();
+						
+			    		endX = image.outX;
+			    		endY = top + image.outY;
+					}
+		    		animImage = new ImageView(context);
+		    		animImage.setImageBitmap(bmp);
+		    		animImage.setX(endX);
+		    		animImage.setY(endY);
+		    		animImage.setAlpha(0.5f);
+		    		animImage.setTranslationX(startX);
+		    		animImage.setTranslationY(startY);
+		    		animImage.animate().translationX(endX).setDuration(Config.ANIM_DURATION);
+		    		animImage.animate().translationY(endY).setDuration(Config.ANIM_DURATION);
 		    		
 		        	float toX = (float)image.outWidth/(float)outLayout[0];
 		        	float toY = (float)image.outHeight/(float)outLayout[1];
-		        	
-		        	int diff = mImageLocation[0] - mVerticalListView.getFirstVisiblePosition();
-		        	int top = mVerticalListView.getChildAt(diff).getTop();
-		    		
-		    		animImage = new ImageView(context);
-		    		animImage.setImageBitmap(bmp);
-		    		animImage.setX(image.outX);
-		    		animImage.setY(top + image.outY);
-		    		animImage.setAlpha(0.5f);
-
-		    		float startX = (float)(mConfig.screenWidth - image.outWidth)/2;
-		    		float startY = (float)(mConfig.screenHeight - image.outHeight)/2;
-		    		
-		    		animImage.setTranslationX(startX);
-		    		animImage.setTranslationY(startY);
-		    		animImage.animate().translationX(image.outX).setDuration(Config.ANIM_DURATION);
-		    		animImage.animate().translationY(top + image.outY).setDuration(Config.ANIM_DURATION);
 		    		
 		        	animImage.setScaleX(1/toX);
 		        	animImage.setScaleY(1/toY);
@@ -733,39 +768,58 @@ public class ImageList extends Activity {
 	            view.startAnimation(scaleAnimation);
 			}
 		}
+		
+		public void listChange(int itemIndex) {
+
+			int changeState = getChangeState(itemIndex);
+			
+			if (mConfig.currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
+
+				int shiftX = 0;
+				
+				if (mImageAnimObj.TOP_DISPLAY == changeState) {
+
+					for(int i = 0; i < mImageLocation[0]; i++) {
+						shiftX += mGalleryLayout.lines.get(i).getWidth();
+					}
+				} else if (mImageAnimObj.BOTTOM_DISPLAY == changeState) {
+					
+					for(int i = 0; i < mImageLocation[0]; i++) {
+						shiftX += mGalleryLayout.lines.get(i).getWidth();
+					}
+					
+					shiftX -=(mConfig.screenWidth - mGalleryLayout.lines.get(mImageLocation[0]).getWidth());
+				}
+				else {
+					shiftX = mHorizontalListView.getCurrentX();
+				}
+				mHorizontalListView.scrollTo(shiftX);
+				virtualImageAnim(mHorizontalListView.getViewTreeObserver(), changeState);
+			}
+			else {
+				mAdapter.notifyDataSetChanged();
+				if (TOP_DISPLAY == changeState) {
+
+					mVerticalListView.setSelection(mImageLocation[0]);
+				} else if (BOTTOM_DISPLAY == changeState) {
+					
+					ImageLineGroup currentLine = mGalleryLayout.lines.get(mImageLocation[0]);
+					int y = mVerticalListView.getHeight() - currentLine.height;
+					mVerticalListView.setSelectionFromTop(mImageLocation[0], y);
+				}
+
+				virtualImageAnim(mVerticalListView.getViewTreeObserver(), changeState);
+			}
+		}
 	}
 	
 	@Override
 	protected void onActivityResult(int requestCode, int resultCode, Intent data) {
 
 		if (requestCode == Config.REQUEST_CODE && resultCode == Config.REQUEST_CODE) {
-
-			int aImageLocation[] = mImageAnimObj.getImageLocation();
 			int itemIndex = data.getIntExtra(Config.DISPLAY_ITEM_INDEX, 0);
-			
-			int changeState = mImageAnimObj.getChangeState(itemIndex);
-			
-			mAdapter.notifyDataSetChanged();
-
-			if (mConfig.currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
-
-				mHorizontalListView.setSelection(aImageLocation[0]);
-			}
-			else {
-				if (mImageAnimObj.TOP_DISPLAY == changeState) {
-
-					mVerticalListView.setSelection(aImageLocation[0]);
-				} else if (mImageAnimObj.BOTTOM_DISPLAY == changeState) {
-					
-					ImageLineGroup currentLine = mGalleryLayout.lines.get(aImageLocation[0]);
-					int y = mVerticalListView.getHeight() - currentLine.height;
-					mVerticalListView.setSelectionFromTop(aImageLocation[0], y);
-				}
-			}
-			
-			mImageAnimObj.virtualImageAnim();
+			mImageAnimObj.listChange(itemIndex);
 		}
-		
 		super.onActivityResult(requestCode, resultCode, data);
 	}
 }

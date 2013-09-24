@@ -11,7 +11,7 @@ import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.provider.MediaStore.Images.Media;
-import android.view.Gravity;
+import android.text.TextUtils;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AbsoluteLayout;
@@ -79,9 +79,9 @@ public class FolderList extends Activity {
 					Configuration.ORIENTATION_PORTRAIT,
 					Config.COMMON_FOLDER);
 			
-			ImageList.moveToFirst();
+			ImageList.moveToLast();
 
-			while (false == ImageList.isAfterLast() && galleryLayout.getLineNum() < 3) {
+			while (false == ImageList.isBeforeFirst() && galleryLayout.getLineNum() < 3) {
 				long id = ImageList.getLong(ImageList.getColumnIndex(Media._ID));
 				int width = ImageList.getInt(ImageList.getColumnIndex(Media.WIDTH));
 				int height = ImageList.getInt(ImageList.getColumnIndex(Media.HEIGHT));
@@ -90,7 +90,7 @@ public class FolderList extends Activity {
 					galleryLayout.addImage(id, width, height, i);
 				}
 
-				ImageList.moveToNext();
+				ImageList.moveToPrevious();
 			}
 			galleryLayout.addImageFinish();
 			
@@ -275,7 +275,7 @@ public class FolderList extends Activity {
 			int shiftWidth = 0;
 			int shiftHeight = 0;
 			
-			intView(parent, line, convertView);
+			initView(parent, line, convertView);
 			
 			if (mConfig.currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
 				shiftWidth = 0;
@@ -289,7 +289,7 @@ public class FolderList extends Activity {
 			fillView(albumPosition, locate, album_max_height, shiftWidth, shiftHeight);
 		}
 		
-		private void intView(LinearLayout parent, AbsoluteLayout line, View convertView) {
+		private void initView(LinearLayout parent, AbsoluteLayout line, View convertView) {
 			/* Prepare the view (no content yet) */
 			if (holder == null) {
 				if (convertView == null) {
@@ -310,13 +310,30 @@ public class FolderList extends Activity {
 
 					// Album Description
 					for (int i = 0; i < 2; i++) {
-						holder.albumDesps[i] = new TextView(context);
-						holder.albumDesps[i].setTextColor(Color.WHITE);
-						holder.albumDesps[i].setTextSize(18);
-						holder.albumDesps[i].setVisibility(View.GONE);
-						holder.albumDesps[i].setGravity(Gravity.CENTER);
-						holder.albumDesps[i].setAlpha(0.6f);
-						line.addView(holder.albumDesps[i]);
+						holder.albumDescBg[i] = new ImageView(context);
+						holder.albumDescBg[i].setBackgroundColor(0xFF000000);
+						holder.albumDescBg[i].setVisibility(View.GONE);
+						holder.albumDescBg[i].setAlpha(0.6f);
+						line.addView(holder.albumDescBg[i]);
+						
+						holder.albumDescName[i] = new TextView(context);
+						holder.albumDescName[i].setTextColor(Color.WHITE);
+						holder.albumDescName[i].setTextSize(16);
+						holder.albumDescName[i].setVisibility(View.GONE);
+						holder.albumDescName[i].setAlpha(0.6f);
+						holder.albumDescName[i].setSingleLine(true);
+						holder.albumDescName[i].setEllipsize(TextUtils.TruncateAt.MARQUEE);
+						holder.albumDescName[i].setMarqueeRepeatLimit(-1);
+						holder.albumDescName[i].setHorizontallyScrolling(true); 
+						holder.albumDescName[i].setSelected(true);
+						line.addView(holder.albumDescName[i]);
+						
+						holder.albumDescCount[i] = new TextView(context);
+						holder.albumDescCount[i].setTextColor(Color.WHITE);
+						holder.albumDescCount[i].setTextSize(14);
+						holder.albumDescCount[i].setVisibility(View.GONE);
+						holder.albumDescCount[i].setAlpha(0.6f);
+						line.addView(holder.albumDescCount[i]);
 					}
 
 					parent.setTag(R.id.data_holder, holder);
@@ -332,7 +349,9 @@ public class FolderList extends Activity {
 					}
 
 					for (int i = 0; i < 2; i++) {
-						holder.albumDesps[i].setVisibility(View.GONE);
+						holder.albumDescBg[i].setVisibility(View.GONE);
+						holder.albumDescName[i].setVisibility(View.GONE);
+						holder.albumDescCount[i].setVisibility(View.GONE);
 					}
 				}
 			}
@@ -449,26 +468,41 @@ public class FolderList extends Activity {
 				}
 			}
 
-			int	despY = album_max_height - Config.ALBUM_DESCRIPTION_HEIGHT + Config.FOLDER_THUMBNAIL_PADDING;
+			int	despY = album_max_height - Config.ALBUM_DESCRIPTION_HEIGHT;
 
-			// Fill Album Description
-			holder.albumDesps[locate].setVisibility(View.VISIBLE);
-			holder.albumDesps[locate].setLayoutParams(new AbsoluteLayout.LayoutParams(
+			// Album Description
+			holder.albumDescBg[locate].setVisibility(View.VISIBLE);
+			holder.albumDescBg[locate].setLayoutParams(new AbsoluteLayout.LayoutParams(
 					firstLine.getWidth() - 2*Config.FOLDER_THUMBNAIL_PADDING,
 					Config.ALBUM_DESCRIPTION_HEIGHT,
 					Config.FOLDER_THUMBNAIL_PADDING + shiftWidth,
 					despY + shiftHeight));
-			holder.albumDesps[locate].setVisibility(View.VISIBLE);
-			holder.albumDesps[locate].setBackgroundResource(R.drawable.grey);
-			holder.albumDesps[locate].setText(mAlbumName.get(albumPosition)
-					+ " (" + mAlbumCount.get(albumPosition).toString() + ")");
+			holder.albumDescBg[locate].setBackgroundResource(R.drawable.grey);
+			
+			holder.albumDescName[locate].setVisibility(View.VISIBLE);
+			holder.albumDescName[locate].setLayoutParams(new AbsoluteLayout.LayoutParams(
+					firstLine.getWidth() - 2*Config.FOLDER_THUMBNAIL_PADDING,
+					Config.ALBUM_DESCRIPTION_HEIGHT/2,
+					Config.FOLDER_THUMBNAIL_PADDING + shiftWidth,
+					despY + shiftHeight));
+			holder.albumDescName[locate].setText(mAlbumName.get(albumPosition));
+			
+			holder.albumDescCount[locate].setVisibility(View.VISIBLE);
+			holder.albumDescCount[locate].setLayoutParams(new AbsoluteLayout.LayoutParams(
+					firstLine.getWidth() - 2*Config.FOLDER_THUMBNAIL_PADDING,
+					Config.ALBUM_DESCRIPTION_HEIGHT/2,
+					Config.FOLDER_THUMBNAIL_PADDING + shiftWidth,
+					despY + shiftHeight + Config.ALBUM_DESCRIPTION_HEIGHT/2));
+			holder.albumDescCount[locate].setText(mAlbumCount.get(albumPosition).toString());
 		}
 
 	    class ViewHolder{
 			ImageView icons[] = new GestureImageView[Config.THUMBNAILS_PER_LINE*4];
 			CacheAndAsyncWork.BitmapWorkerTask task[] = new CacheAndAsyncWork.BitmapWorkerTask[Config.THUMBNAILS_PER_LINE*4];
 			
-			TextView albumDesps[] = new TextView[2];
+			TextView albumDescName[] = new TextView[2];
+			TextView albumDescCount[] = new TextView[2];
+			ImageView albumDescBg[] = new ImageView[2];
 		}
 	}
 	
