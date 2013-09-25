@@ -94,26 +94,17 @@ public class ImageDetailFragment extends Fragment {
 			mImageView.setImageBitmap(ImageDetail.getFlipMap().get(position));
 		} else {
 			int scaleSize = bitmapFactoryOptions.outWidth / outLayout[0];
-			//Log.v("t-gallery", "not exist: " + position + "  , scaleSize: " + scaleSize);
-			if (scaleSize > 1) {
-				CacheAndAsyncWork.BitmapPathWorkerTask task = mCacheAndAsyncWork.new BitmapPathWorkerTask(
+			
+			CacheAndAsyncWork.BitmapPathWorkerTask task = mCacheAndAsyncWork.new BitmapPathWorkerTask(
 						mImageView, scaleSize);
-				task.execute(mImagePath);
+			task.execute(mImagePath);
 
-				if (true == bAnim) {
-					Bitmap thumb = mCacheAndAsyncWork.getBitmapFromRamCache(mThumbnailId);
+			if (true == bAnim) {
+				Bitmap thumb = mCacheAndAsyncWork.getBitmapFromRamCache(mThumbnailId);
 
-					mImageView.setImageBitmap(thumb);
-				} else {
-					mImageView.setImageResource(R.drawable.grey);
-				}
+				mImageView.setImageBitmap(thumb);
 			} else {
-				bitmapFactoryOptions.inJustDecodeBounds = false;
-				bitmapFactoryOptions.inSampleSize = scaleSize;
-				image = BitmapFactory.decodeFile(mImagePath,
-						bitmapFactoryOptions);
-
-				mImageView.setImageBitmap(image);
+				mImageView.setImageResource(R.drawable.grey);
 			}
 		}
 	}
