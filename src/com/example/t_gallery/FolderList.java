@@ -419,7 +419,6 @@ public class FolderList extends Activity {
 						
 						if (adjustY < album_max_height) {
 							holder.icons[i + shiftIconIndex].setVisibility(View.VISIBLE);
-							holder.icons[i + shiftIconIndex].setScaleType(ImageView.ScaleType.FIT_XY);
 
 							int height = adjustY + image.outHeight + 2* Config.FOLDER_THUMBNAIL_PADDING;
 
@@ -436,6 +435,7 @@ public class FolderList extends Activity {
 												album_max_height - adjustY,
 												image.outX + shiftWidth,
 												adjustY + shiftHeight));
+								holder.icons[i + shiftIconIndex].setScaleType(ImageView.ScaleType.CENTER_CROP);
 							}
 
 							Bitmap bmp = mCacheAndAsyncWork.getBitmapFromRamCache(image.id);
