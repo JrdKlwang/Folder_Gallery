@@ -8,6 +8,8 @@ import android.provider.MediaStore.Images.Media;
 import android.view.WindowManager;
 
 class Config {
+	static public final boolean LOG_ENABLE = true;
+	
 	/* Application configuration */
 	static public final int MAX_ALBUM = 1000;
 	static public final int MAX_PICTURE_IN_ALBUM = 10000;
@@ -15,8 +17,7 @@ class Config {
 	static public final int THUMBNAILS_PER_LINE = 6;
 	static public final int THUMBNAIL_WIDTH = 132;
 	static public final int THUMBNAIL_HEIGHT = 132;
-	static public final int IMAGE_LIST_THUMBNAIL_PADDING = 10;
-	static public final int FOLDER_THUMBNAIL_PADDING = 5;
+	static public final int IMAGE_LIST_THUMBNAIL_PADDING = 15;
 
 	/* RAM cache */
 	static public final int RAM_CACHE_SIZE_KB = (int) (Runtime.getRuntime().maxMemory() / 4096);
@@ -31,15 +32,12 @@ class Config {
 
 	/* UI Effect */
 	static public final int ANIM_DURATION = 300; /* count in ms */
-
-	static public final int COLLAPSE_SHORTCUT_ANIM_DURATION = 500;
-	static public final int COLLAPSE_SHORTCUT_STAY_DURATION = 2000;
-
 	static public final float MAX_WIDTH_HEIGHT_RATIO = 4.0f;
-	static public final int ALBUM_DESCRIPTION_HEIGHT = 120;
-	static public final int ALBUM_PADDING = 50;
-	static public final int CAMARA_ALBUM_HEIGHT = 700;
-	static public final int COMMON_ALBUM_HEIGHT = 500;
+	static public final int ALBUM_DESCRIPTION_HEIGHT = 100;
+	static public final int ALBUM_LIST_PADDING = 30;
+	static public final int ALBUM_OVERLIE_IMAGE_WIDTH = 40;
+	static public final int ALBUM_OVERLIE_DELETE_WIDTH = 12;
+	static public final int IMAGE_NUM_PRE_ALBUM = 4;
 
 	/* Request string */
 	static public final int REQUEST_CODE = 0x717;
@@ -67,6 +65,12 @@ class Config {
 	public int screenWidth = 0;
 	public int screenHeight = 0;
 	public int currentOrientation = Configuration.ORIENTATION_PORTRAIT;
+	
+	
+	static public final int FOLDER_THUMBNAIL_PADDING = 5;
+	static public final int ALBUM_PADDING = 50;
+	static public final int CAMARA_ALBUM_HEIGHT = 700;
+    static public final int COMMON_ALBUM_HEIGHT = 500;
 	
 	Config(Context context) {
     	Point outPoint = new Point();

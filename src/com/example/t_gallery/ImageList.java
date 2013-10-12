@@ -12,7 +12,6 @@ import android.os.Bundle;
 import android.provider.MediaStore.Images.Media;
 import android.provider.MediaStore.Images.Thumbnails;
 import android.util.Log;
-import android.view.Menu;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
@@ -27,6 +26,7 @@ import android.widget.ImageView;
 import android.widget.ListView;
 
 public class ImageList extends Activity {
+	private static String TAG = "New-Gallery ImageList";
 	private ArrayList<String> mImageList = null;
 	private ArrayList<Long> mImageIds = null;
 	public GalleryLayout mGalleryLayout = null;
@@ -37,6 +37,7 @@ public class ImageList extends Activity {
 	
 	private HorizontalListView  mHorizontalListView;
 	private ListView  mVerticalListView;
+	private int mFolderType; 
 	
 	//Screen Info
 	private int mContentTop = 0;
@@ -56,21 +57,25 @@ public class ImageList extends Activity {
 		galleryList.moveToPosition(album_index);
 		
 		String album = galleryList.getString(galleryList.getColumnIndex(Media.BUCKET_DISPLAY_NAME));
-		int folderType = album.compareTo("Camera") == 0 ? Config.CAMERA_FOLDER:Config.COMMON_FOLDER;
+		mFolderType = album.compareTo("Camera") == 0 ? Config.CAMERA_FOLDER:Config.COMMON_FOLDER;
+		
+		Utils.LogV(TAG, "Folder Name: " + album + "   ,Folder Type: " + mFolderType);
 		
 		if (mConfig.currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
 			mGalleryLayout = new GalleryLayout(0, 
 					mConfig.screenHeight - mContentTop,
 					Config.IMAGE_LIST_THUMBNAIL_PADDING,
 					mConfig.currentOrientation,
-					folderType);
+					mFolderType,
+					false);
 		} 
 		else {
 			mGalleryLayout = new GalleryLayout(mConfig.screenWidth,
 					0,
 					Config.IMAGE_LIST_THUMBNAIL_PADDING,
 					mConfig.currentOrientation,
-					folderType);
+					mFolderType,
+					false);
 		}
 		
 		String galleryId = galleryList.getString(galleryList.getColumnIndex(Media.BUCKET_ID));
@@ -218,13 +223,6 @@ public class ImageList extends Activity {
 		return ret;
 	}
 	
-	@Override
-	public boolean onCreateOptionsMenu(Menu menu) {
-		// Inflate the menu; this adds items to the action bar if it is present.
-		//getMenuInflater().inflate(R.menu.activity_gallery_list, menu);
-		return true;
-	}
-	
 	class ImageListAdapter extends BaseAdapter{
 		private Context context;
 
@@ -267,13 +265,7 @@ public class ImageList extends Activity {
 	            for (int i=0; i<Config.THUMBNAILS_PER_LINE; i++){
 	            	holder.icons[i] = new GestureImageView(context, 2);
 	            	holder.icons[i].setBackgroundColor(0xFF000000);
-	            	holder.icons[i].setVisibility(View.GONE);
-					holder.icons[i].setPadding(
-							Config.IMAGE_LIST_THUMBNAIL_PADDING,
-							Config.IMAGE_LIST_THUMBNAIL_PADDING,
-							Config.IMAGE_LIST_THUMBNAIL_PADDING,
-							Config.IMAGE_LIST_THUMBNAIL_PADDING);
-					
+	            	holder.icons[i].setScaleType(ImageView.ScaleType.CENTER_CROP);
 	    			line.addView(holder.icons[i]);
 	            }
 				
@@ -288,43 +280,62 @@ public class ImageList extends Activity {
 						holder.task[i].cancel(true);
 						holder.task[i] = null;
 					}
-					holder.icons[i].setVisibility(View.GONE);
 				}
 			}
 			
 			ImageLineGroup currentLine = mGalleryLayout.lines.get(position);
+			int imageNum = currentLine.getImageNum();
 			
 			/*Fill in the content*/
-	        for (int i=0; i<currentLine.getImageNum(); i++){
-
-				Bitmap bmp = mCacheAndAsyncWork.getBitmapFromRamCache(currentLine.getImage(i).id);
-				ImageCell image = currentLine.getImage(i);
-
-				holder.icons[i].setLayoutParams(new AbsoluteLayout.LayoutParams(
-								image.outWidth + 2*Config.IMAGE_LIST_THUMBNAIL_PADDING,
-								image.outHeight + 2*Config.IMAGE_LIST_THUMBNAIL_PADDING,
-								image.outX, image.outY));
-				holder.icons[i].setVisibility(View.VISIBLE);
-				holder.icons[i].setScaleType(ImageView.ScaleType.FIT_XY);
-				
-				if (bmp != null) {
-					holder.icons[i].setImageBitmap(bmp);
-				} else {
-					CacheAndAsyncWork.BitmapWorkerTask task = mCacheAndAsyncWork.new BitmapWorkerTask(
-							holder.icons[i], context.getContentResolver(), mImageList);
-					task.execute(image.id, (long) image.outWidth,
-							(long) image.outHeight, (long) image.position, (long) image.crop);
-					holder.task[i] = task;
-					holder.icons[i].setImageResource(R.drawable.grey);
+			for(int i = 0; i < Config.THUMBNAILS_PER_LINE; i++) {
+				if(i >= imageNum) {
+					holder.icons[i].setVisibility(View.GONE);
 				}
+				else {
+					Bitmap bmp = mCacheAndAsyncWork.getBitmapFromRamCache(currentLine.getImage(i).id);
+					ImageCell image = currentLine.getImage(i);
 
-				holder.icons[i].setId(image.position);
-				mImageAnimObj.anim(position, i, holder.icons[i]);
+					holder.icons[i].setLayoutParams(new AbsoluteLayout.LayoutParams(
+									image.outWidth + Config.IMAGE_LIST_THUMBNAIL_PADDING,
+									image.outHeight + Config.IMAGE_LIST_THUMBNAIL_PADDING,
+									image.outX + Config.IMAGE_LIST_THUMBNAIL_PADDING,
+									image.outY + Config.IMAGE_LIST_THUMBNAIL_PADDING));
+					holder.icons[i].setVisibility(View.VISIBLE);
+					
+					if (bmp != null) {
+						holder.icons[i].setImageBitmap(bmp);
+					} else {
+						CacheAndAsyncWork.BitmapWorkerTask task = mCacheAndAsyncWork.new BitmapWorkerTask(
+								holder.icons[i], context.getContentResolver(), mImageList);
+						if(mFolderType == Config.CAMERA_FOLDER) {
+							task.execute(image.id, 1l, (long) image.outWidth, (long) image.position);
+						}
+						else {
+							task.execute(image.id, 2l, (long) image.outWidth, (long) image.position);
+						}
+						holder.task[i] = task;
+						holder.icons[i].setImageResource(R.drawable.grey);
+					}
+
+					holder.icons[i].setId(image.position);
+					mImageAnimObj.anim(position, i, holder.icons[i]);
+				}
 			}
-	        
 			if (mGroupImageAnim != null) {
 				mGroupImageAnim.layoutAnim(line, position);
 			}
+
+			if(position == mGalleryLayout.getLineNum()-1) {
+				if (mConfig.currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
+					line.setPadding(0, 0, Config.IMAGE_LIST_THUMBNAIL_PADDING, 0);
+				} else {
+					line.setPadding(0, 0, 0, Config.IMAGE_LIST_THUMBNAIL_PADDING);
+				}
+			}
+			else {
+				line.setPadding(0, 0, 0, 0);
+			}
+
 			return line;
 		}
 		

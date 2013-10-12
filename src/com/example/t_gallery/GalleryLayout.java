@@ -12,27 +12,21 @@ class ImageCell {
 		float ratio = (float) aHeight / (float) aWidth;
 		
 		if(folderType == Config.CAMERA_FOLDER) {
+			Random random = new Random();
+			float[] aRatio = new float[2];
+			aRatio[0] = (float) aHeight / (float) aWidth;
 			
 			if(aHeight > aWidth) {
-				Random random = new Random();
-				float[] aRatio = { 0, 1.6f, 1.5f, 1.4f, 1.3f};
-				int choice = random.nextInt(aRatio.length);
-
-				if (0 == choice) {
-					inWidth = aWidth;
-					inHeight = aHeight;
-					yRatio = (float) inHeight / (float) inWidth;
-				} else {
-					inHeight = (int) (aWidth * aRatio[choice]);
-					inWidth = aWidth;
-					yRatio = aRatio[choice];
-				}
+				aRatio[1] = 0.7f;
 			}
 			else {
-				inWidth = aWidth;
-				inHeight = aHeight;
-				yRatio = (float) inHeight / (float) inWidth;
+				aRatio[1] = 1.4f;
 			}
+			int choice = random.nextInt(aRatio.length);
+
+			inHeight = (int) (aWidth * aRatio[choice]);
+			inWidth = aWidth;
+			yRatio = aRatio[choice];
 		}
 		else {
 			if (ratio > Config.MAX_WIDTH_HEIGHT_RATIO) {
@@ -69,7 +63,6 @@ class ImageCell {
 	
 	public long id = 0;
 	public int position = 0;
-	public int crop = 0; //Todo: maybe can deleted
 	
 	public int inWidth = 0;
 	public int inHeight = 0;
@@ -257,6 +250,22 @@ class ImageSingleLineGroup extends ImageLineGroup{
 			}
 		}
 	}
+	
+	public void stretchLayout() {
+		if (orientationType == Configuration.ORIENTATION_LANDSCAPE) {
+			if (height < totalHeight) {
+				ImageCell lastImage = imageList.get(imageList.size()-1);
+				lastImage.outHeight += (totalHeight-height);
+				height = totalHeight;
+			}
+		} else {
+			if (width < totalWidth) {
+				ImageCell lastImage = imageList.get(imageList.size()-1);
+				lastImage.outWidth += (totalWidth-width);
+				width = totalWidth;
+			}
+		}
+	}
 }
 
 class ImageProcessBuffer{	
@@ -406,9 +415,6 @@ class ImageRichLinePatternCollection {
 			}
 			else if (image.yRatio <= 1.15f) {
 				return IMAGE_SQUARE;
-			}
-			else if(image.yRatio <= 1.8f) {
-				return IMAGE_CAMERA;
 			}
 			else if (image.yRatio <= 2.5f) {
 				return IMAGE_PORTRAIT;
@@ -1513,7 +1519,7 @@ class ImageRichLinePatternCollection {
                     return -1;
                 }
                 
-                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE | IMAGE_CAMERA, IMAGE_CAMERA | IMAGE_PORTRAIT | IMAGE_SLIM};
+                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE, IMAGE_PORTRAIT | IMAGE_SLIM};
                 int aNum[] = {3, 1};
 
                 if (true == isImageListPortrait(images, aTypes, aNum, 4, folerType)){
@@ -1578,7 +1584,7 @@ class ImageRichLinePatternCollection {
                     return -1;
                 }
 
-                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE | IMAGE_CAMERA, IMAGE_CAMERA | IMAGE_PORTRAIT | IMAGE_SLIM};
+                int aTypes[] = {IMAGE_LANDSCAPE | IMAGE_SQUARE, IMAGE_PORTRAIT | IMAGE_SLIM};
                 int aNum[] = {3, 1};
 
                 if (true == isImageListPortrait(images, aTypes, aNum, 4, folerType)){
@@ -2535,7 +2541,7 @@ public class GalleryLayout {
 	private static final int MAX_BUFFER_LENGTH = 6;
 	private int lastPattern = -2; /*-1 indicates using the single line, -2 indicates starting*/
 	
-	GalleryLayout(int containerWidth, int containerHeight, int pad, int orientationType, int folderType){
+	GalleryLayout(int containerWidth, int containerHeight, int pad, int orientationType, int folderType, boolean bStretch){
 		totalWidth = containerWidth;
 		lines = new ArrayList<ImageLineGroup>();
 		
@@ -2547,6 +2553,7 @@ public class GalleryLayout {
 		totalHeight = containerHeight;
 		this.orientationType = orientationType;
 		this.folderType = folderType;
+		stretch = bStretch;
 		
 		createRichPatternScope(orientationType);
 	}
@@ -2618,6 +2625,9 @@ public class GalleryLayout {
 				while (true == line.needMoreImage() && false == itemBuffer.isEmpty()){
 					line.addImage(itemBuffer.remove(0));
 				}
+				if(stretch) {
+					line.stretchLayout();
+				}
 				addLine(line);
 				lastPattern = -1;
 			}
@@ -2628,6 +2638,9 @@ public class GalleryLayout {
 					totalHeight, thumbnailPad, orientationType);
 			while (true == line.needMoreImage() && false == itemBuffer.isEmpty()){
 				line.addImage(itemBuffer.remove(0));
+			}
+			if(stretch) {
+				line.stretchLayout();
 			}
 			addLine(line);
 			lastPattern = -1;
@@ -2663,4 +2676,5 @@ public class GalleryLayout {
 	private int thumbnailPad = 0;
 	private int scope[];
 	private int folderType = Config.COMMON_FOLDER;
+	private boolean stretch = false;
 }

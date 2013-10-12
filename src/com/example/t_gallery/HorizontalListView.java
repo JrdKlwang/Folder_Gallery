@@ -7,7 +7,6 @@ import android.content.Context;
 import android.database.DataSetObserver;
 import android.graphics.Rect;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.view.GestureDetector;
 import android.view.GestureDetector.OnGestureListener;
 import android.view.MotionEvent;
@@ -52,6 +51,10 @@ public class HorizontalListView extends AdapterView<ListAdapter> {
 		mGesture = new GestureDetector(getContext(), mOnGesture);
 	}
 
+	public void setMaxX(int maxX) {
+		mMaxX = maxX;
+	}
+	
 	@Override
 	public void setOnItemSelectedListener(
 			AdapterView.OnItemSelectedListener listener) {
@@ -309,11 +312,6 @@ public class HorizontalListView extends AdapterView<ListAdapter> {
 		public boolean onDown(MotionEvent e) {
 			return HorizontalListView.this.onDown(e);
 		}
-		
-	    public boolean onSingleTapUp(MotionEvent e) {   
-	        Log.v("t-galleryhv", "onSingleTapUp");
-	        return true;   
-	    }  
 		
 		@Override
 		public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX,

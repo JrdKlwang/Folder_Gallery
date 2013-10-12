@@ -13,6 +13,7 @@ import android.util.LruCache;
 import android.widget.ImageView;
 
 public class CacheAndAsyncWork {
+	private static String TAG = "New-Gallery CacheAndAsyncWork";
 	private static LruCache<Long, Bitmap> mRamCache = null;
 	
 	public CacheAndAsyncWork() {
@@ -44,8 +45,7 @@ public class CacheAndAsyncWork {
 		private ArrayList<String> imageList;
 		
 		public BitmapWorkerTask(ImageView icon, ContentResolver contentResolver, ArrayList<String> imageList){
-			
-			Log.v("t-gallery", "BitmapWorkerTask");
+			Utils.LogV(TAG, "Create BitmapWorkerTask");
 			iconReference = new WeakReference<ImageView>(icon);
 			this.contentResolver = contentResolver;
 			this.imageList = imageList;
@@ -53,33 +53,49 @@ public class CacheAndAsyncWork {
 		
 		@Override
 		protected  Bitmap doInBackground(Long... params) {
-		    BitmapFactory.Options options = new BitmapFactory.Options();
-		    
 		    id = params[0];
-			Bitmap thumb = Thumbnails.getThumbnail(contentResolver, id, Thumbnails.MINI_KIND, options);
-			
-			//Load original image instead of thumbnail if we enlarge it too-much
-			if(imageList != null) {
-				int outWidth = params[1].intValue();
-				int outHeight = params[2].intValue();
+		    Bitmap thumb = null;
+		    
+		    if(params[1] == 0) {//Folder list
+		    	ArrayList<Bitmap> image_list = new ArrayList<Bitmap>();
+			    BitmapFactory.Options options = new BitmapFactory.Options();
+			    
+				for(int i = 0; i < Config.IMAGE_NUM_PRE_ALBUM; i++) {
+					Bitmap temp = null;
+					if(params[i + 2] != 0) {
+						temp = Thumbnails.getThumbnail(contentResolver, params[i + 2], Thumbnails.MINI_KIND, options);
+					}
+					image_list.add(temp);
+				}
+				thumb = Utils.layerImages(image_list, params[6].intValue(), params[6].intValue());
+		    }
+		    else if(params[1] == 1) { // Camere Folder Image List
+		    	
+			    BitmapFactory.Options options = new BitmapFactory.Options();
+		    	thumb = Thumbnails.getThumbnail(contentResolver, id, Thumbnails.MINI_KIND, options);
+		    }
+		    else if (params[1] == 2) { //Other Folder Image List
+			    BitmapFactory.Options options = new BitmapFactory.Options();
+				thumb = Thumbnails.getThumbnail(contentResolver, id, Thumbnails.MINI_KIND, options);
+				
+				//Load original image instead of thumbnail if we enlarge it too-much
+				int outWidth = params[2].intValue();
 				int imagePosition = params[3].intValue();
 				String path = imageList.get(imagePosition);
 				float ratio = (float)thumb.getWidth() / (float) outWidth;
-				
+					
 				if (ratio <= 0.5f) {
 					thumb.recycle();
-
 					options.inJustDecodeBounds = true;
 					BitmapFactory.decodeFile(path, options);
-					
+						
+					options.inSampleSize = options.outWidth / outWidth;	
 					options.inJustDecodeBounds = false;
-					options.inSampleSize = options.outWidth / outWidth;
 					thumb = BitmapFactory.decodeFile(path, options);
-
-					Log.v("t-gallery", "load original ratio: "+ratio + "   ,inSampleSize: " + options.inSampleSize);
+					Utils.LogV(TAG, "load original ratio: " + ratio + "   ,inSampleSize: " + options.inSampleSize);
 				}
-			}
-			
+		    }
+
 			return thumb;
 		}
 		
@@ -88,10 +104,11 @@ public class CacheAndAsyncWork {
 			if (iconReference != null && bitmap != null){
 				final ImageView iconView = iconReference.get();
 				
-				if (iconView != null){
-					addBitmapToRamCache(id, bitmap);
+				if (iconView != null && iconView.isShown()){
 					iconView.setImageBitmap(bitmap);
 				}
+				
+				addBitmapToRamCache(id, bitmap);
 			}
 		}
      }
